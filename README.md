@@ -104,14 +104,47 @@ Implemented routes:
 
 - `GET /health`
 - `GET /v1/users`
+- `POST /v1/users`
 - `GET /v1/users/{id}`
 
 `GET /v1/users` supports query parameters for the common gRPC list request:
 
 - `page` and `pageSize` for pagination
-- `filterCol`, `filterOp`, `filterVal`, and repeated `filterVals` for one
-  filter clause
+- `filterCol`, `filterOp`, `filterVal`, and `filterVals` for one filter clause
 - `orderBy` and `order` for one order clause
+
+Use `POST /v1/users` when the request needs multiple filters or order clauses:
+
+```json
+{
+    "pagination": {
+        "page": 1,
+        "pageSize": 10
+    },
+    "filters": [
+        {
+            "col": "username",
+            "op": "like_ci",
+            "val": "kit"
+        },
+        {
+            "col": "status",
+            "op": "in",
+            "vals": ["active", "pending"]
+        }
+    ],
+    "orderBy": [
+        {
+            "col": "username",
+            "order": "desc"
+        },
+        {
+            "col": "createdAt",
+            "order": "asc"
+        }
+    ]
+}
+```
 
 ## available commands
 

@@ -26,6 +26,19 @@ func Register(h huma.API, deps api.Deps) {
 		return userListFromProto(resp), nil
 	}, humautil.WithTag(api.TagUsers))
 
+	huma.Post(h, "/users", func(ctx context.Context, input *AdvancedListUsersInput) (*UserListOutput, error) {
+		resp, err := client.ListUsers(ctx, &userv1.ListUsersRequest{
+			Pagination: paginationFromAdvancedInput(input),
+			Filters:    filtersFromAdvancedInput(input),
+			OrderBy:    orderByFromAdvancedInput(input),
+		})
+		if err != nil {
+			return nil, humautil.GRPCError(err)
+		}
+
+		return userListFromProto(resp), nil
+	}, humautil.WithTag(api.TagUsers))
+
 	huma.Get(h, "/users/{id}", func(ctx context.Context, input *GetUserInput) (*UserOutput, error) {
 		resp, err := client.GetUser(ctx, &userv1.GetUserRequest{Id: input.ID})
 		if err != nil {

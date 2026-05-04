@@ -1,6 +1,8 @@
 package usersv1
 
 import (
+	"strings"
+
 	"github.com/kitti12911/lib-util/v3/protoutil"
 	"github.com/kitti12911/lib-util/v3/query"
 
@@ -110,12 +112,17 @@ func filtersFromInput(input *ListUsersInput) []*commonv1.Filter {
 		return nil
 	}
 
+	var vals []string
+	if input.FilterVals != "" {
+		vals = strings.Split(input.FilterVals, ",")
+	}
+
 	return []*commonv1.Filter{
 		{
 			Col:  input.FilterCol,
 			Op:   query.FilterOpFromString[commonv1.FilterOp](input.FilterOp),
 			Val:  input.FilterVal,
-			Vals: input.FilterVals,
+			Vals: vals,
 		},
 	}
 }
@@ -131,4 +138,57 @@ func orderByFromInput(input *ListUsersInput) []*commonv1.OrderBy {
 			Order: query.OrderDirectionFromString[commonv1.OrderDirection](input.Order),
 		},
 	}
+}
+
+func paginationFromAdvancedInput(input *AdvancedListUsersInput) *commonv1.PaginationRequest {
+	if input.Body.Pagination == nil {
+		return nil
+	}
+
+	return &commonv1.PaginationRequest{
+		Page:     int32(input.Body.Pagination.Page),
+		PageSize: int32(input.Body.Pagination.PageSize),
+	}
+}
+
+func filtersFromAdvancedInput(input *AdvancedListUsersInput) []*commonv1.Filter {
+	if len(input.Body.Filters) == 0 {
+		return nil
+	}
+
+	filters := make([]*commonv1.Filter, 0, len(input.Body.Filters))
+	for _, filter := range input.Body.Filters {
+		if filter.Col == "" {
+			continue
+		}
+
+		filters = append(filters, &commonv1.Filter{
+			Col:  filter.Col,
+			Op:   query.FilterOpFromString[commonv1.FilterOp](filter.Op),
+			Val:  filter.Val,
+			Vals: filter.Vals,
+		})
+	}
+
+	return filters
+}
+
+func orderByFromAdvancedInput(input *AdvancedListUsersInput) []*commonv1.OrderBy {
+	if len(input.Body.OrderBy) == 0 {
+		return nil
+	}
+
+	orderBy := make([]*commonv1.OrderBy, 0, len(input.Body.OrderBy))
+	for _, order := range input.Body.OrderBy {
+		if order.Col == "" {
+			continue
+		}
+
+		orderBy = append(orderBy, &commonv1.OrderBy{
+			Col:   order.Col,
+			Order: query.OrderDirectionFromString[commonv1.OrderDirection](order.Order),
+		})
+	}
+
+	return orderBy
 }

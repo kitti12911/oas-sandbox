@@ -9,14 +9,41 @@ type GetUserInput struct {
 }
 
 type ListUsersInput struct {
-	Page       int      `query:"page"       example:"1"        doc:"Page number"`
-	PageSize   int      `query:"pageSize"   example:"10"       doc:"Items per page"`
-	FilterCol  string   `query:"filterCol"  example:"username" doc:"Filter field"`
-	FilterOp   string   `query:"filterOp"   example:"like_ci"  doc:"Filter operation: exact, like, like_ci, gt, lt, gte, lte, null, not_null, in, between, between_exclusive"`
-	FilterVal  string   `query:"filterVal"  example:"kit"      doc:"Single filter value"`
-	FilterVals []string `query:"filterVals" example:"active"   doc:"Multiple filter values for in and between operations"`
-	OrderBy    string   `query:"orderBy"    example:"username" doc:"Order field"`
-	Order      string   `query:"order"      example:"asc"      doc:"Order direction: asc or desc"`
+	Page       int    `query:"page"       example:"1"        doc:"Page number"`
+	PageSize   int    `query:"pageSize"   example:"10"       doc:"Items per page"`
+	FilterCol  string `query:"filterCol"  example:"username" doc:"Filter field"`
+	FilterOp   string `query:"filterOp"   example:"like_ci"  doc:"Filter operation: exact, like, like_ci, gt, lt, gte, lte, null, not_null, in, between, between_exclusive"`
+	FilterVal  string `query:"filterVal"  example:"kit"      doc:"Single filter value"`
+	FilterVals string `query:"filterVals" example:"active,pending" doc:"Comma-separated multi values for in and between operations"`
+	OrderBy    string `query:"orderBy"    example:"username" doc:"Order field"`
+	Order      string `query:"order"      example:"asc"      doc:"Order direction: asc or desc"`
+}
+
+type AdvancedListUsersInput struct {
+	Body AdvancedListUsersRequest
+}
+
+type AdvancedListUsersRequest struct {
+	Pagination *Pagination `json:"pagination,omitempty" doc:"Pagination options"`
+	Filters    []Filter    `json:"filters,omitempty"    doc:"Filter clauses"`
+	OrderBy    []OrderBy   `json:"orderBy,omitempty"    doc:"Order clauses"`
+}
+
+type Pagination struct {
+	Page     int `json:"page,omitempty"     example:"1"  doc:"Page number"`
+	PageSize int `json:"pageSize,omitempty" example:"10" doc:"Items per page"`
+}
+
+type Filter struct {
+	Col  string   `json:"col"            example:"username" doc:"Filter field"`
+	Op   string   `json:"op"             example:"like_ci"  doc:"Filter operation"`
+	Val  string   `json:"val,omitempty"  example:"new"      doc:"Single filter value"`
+	Vals []string `json:"vals,omitempty" example:"active"   doc:"Multiple filter values"`
+}
+
+type OrderBy struct {
+	Col   string `json:"col"   example:"username" doc:"Order field"`
+	Order string `json:"order" example:"asc"      doc:"Order direction: asc or desc"`
 }
 
 type UserOutput struct {

@@ -151,7 +151,9 @@ func TestListUsersEndpoint(t *testing.T) {
 	srv := NewHTTPServer(0, "oas-sandbox", client)
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/v1/users?page=2&pageSize=5&filterCol=username&filterOp=like_ci&filterVal=kit&orderBy=username&order=desc",
+		"/v1/users?page=2&pageSize=5"+
+			"&filterCol=username&filterOp=like_ci&filterVal=kit"+
+			"&orderBy=username&order=desc",
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -179,6 +181,87 @@ func TestListUsersEndpoint(t *testing.T) {
 	require.Len(t, got.GetOrderBy(), 1)
 	assert.Equal(t, "username", got.GetOrderBy()[0].GetCol())
 	assert.Equal(t, commonv1.OrderDirection_ORDER_DIRECTION_DESC, got.GetOrderBy()[0].GetOrder())
+}
+
+func TestAdvancedListUsersEndpoint(t *testing.T) {
+	var got *userv1.ListUsersRequest
+	client := fakeUserClient{listReq: &got}
+	srv := NewHTTPServer(0, "oas-sandbox", client)
+	body := strings.NewReader(`{
+		"pagination": {
+			"page": 3,
+			"pageSize": 15
+		},
+		"filters": [
+			{
+				"col": "createdAt",
+				"op": "between",
+				"vals": ["2026-05-03T19:52:28.202566Z", "2026-05-03T19:54:28.202566Z"]
+			},
+			{
+				"col": "username",
+				"op": "like",
+				"val": "new"
+			},
+			{
+				"col": "deletedAt",
+				"op": "null"
+			},
+			{
+				"col": "status",
+				"op": "in",
+				"vals": ["active", "pending"]
+			}
+		],
+		"orderBy": [
+			{
+				"col": "username",
+				"order": "desc"
+			},
+			{
+				"col": "createdAt",
+				"order": "asc"
+			}
+		]
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/users", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, got)
+	assert.Equal(t, int32(3), got.GetPagination().GetPage())
+	assert.Equal(t, int32(15), got.GetPagination().GetPageSize())
+
+	require.Len(t, got.GetFilters(), 4)
+
+	assert.Equal(t, "createdAt", got.GetFilters()[0].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_BETWEEN, got.GetFilters()[0].GetOp())
+	assert.Equal(t, []string{
+		"2026-05-03T19:52:28.202566Z",
+		"2026-05-03T19:54:28.202566Z",
+	}, got.GetFilters()[0].GetVals())
+
+	assert.Equal(t, "username", got.GetFilters()[1].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE, got.GetFilters()[1].GetOp())
+	assert.Equal(t, "new", got.GetFilters()[1].GetVal())
+
+	assert.Equal(t, "deletedAt", got.GetFilters()[2].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_NULL, got.GetFilters()[2].GetOp())
+	assert.Empty(t, got.GetFilters()[2].GetVal())
+	assert.Empty(t, got.GetFilters()[2].GetVals())
+
+	assert.Equal(t, "status", got.GetFilters()[3].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_IN, got.GetFilters()[3].GetOp())
+	assert.Equal(t, []string{"active", "pending"}, got.GetFilters()[3].GetVals())
+
+	require.Len(t, got.GetOrderBy(), 2)
+	assert.Equal(t, "username", got.GetOrderBy()[0].GetCol())
+	assert.Equal(t, commonv1.OrderDirection_ORDER_DIRECTION_DESC, got.GetOrderBy()[0].GetOrder())
+	assert.Equal(t, "createdAt", got.GetOrderBy()[1].GetCol())
+	assert.Equal(t, commonv1.OrderDirection_ORDER_DIRECTION_ASC, got.GetOrderBy()[1].GetOrder())
 }
 
 type fakeUserClient struct {
