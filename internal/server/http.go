@@ -14,20 +14,23 @@ import (
 	"github.com/danielgtaylor/huma/v2/yaml"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	userv1 "oas-sandbox/gen/grpc/user/v1"
 	"oas-sandbox/internal/api"
 	"oas-sandbox/internal/api/system"
+	usersv1 "oas-sandbox/internal/api/users/v1"
 )
 
 type HTTPServer struct {
 	server *http.Server
 }
 
-func NewHTTPServer(port int, serviceName string) *HTTPServer {
+func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceClient) *HTTPServer {
 	mux := http.NewServeMux()
 	humaConfig := huma.DefaultConfig("OAS Sandbox", "0.1.0")
 	humaConfig.Info.Description = "OpenAPI sandbox for homelab API experiments."
 	humaConfig.Tags = []*huma.Tag{
 		{Name: api.TagSystem, Description: "Service health and operational endpoints."},
+		{Name: api.TagUsers, Description: "User resource endpoints."},
 	}
 	humaConfig.DocsPath = ""
 	humaConfig.OpenAPIPath = ""
@@ -35,6 +38,7 @@ func NewHTTPServer(port int, serviceName string) *HTTPServer {
 	humaAPI := humago.New(mux, humaConfig)
 	registerAPI(humaAPI, api.Deps{
 		ServiceName: serviceName,
+		UserClient:  userClient,
 	})
 	registerOpenAPISpec(mux, humaAPI)
 	registerSwaggerUIAssets(mux)
@@ -62,6 +66,9 @@ func (s *HTTPServer) Stop(ctx context.Context) {
 
 func registerAPI(h huma.API, deps api.Deps) {
 	system.Register(h, deps)
+
+	v1 := huma.NewGroup(h, "/v1")
+	usersv1.Register(v1, deps)
 }
 
 func registerOpenAPISpec(mux *http.ServeMux, humaAPI huma.API) {

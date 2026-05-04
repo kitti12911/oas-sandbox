@@ -7,6 +7,7 @@ require (
 	github.com/kitti12911/lib-monitor v1.5.0
 	github.com/kitti12911/lib-util/v3 v3.2.0
 	github.com/stretchr/testify v1.11.1
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11

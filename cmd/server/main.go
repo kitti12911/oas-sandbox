@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -13,7 +15,11 @@ import (
 	"github.com/kitti12911/lib-monitor/tracing"
 	libconfig "github.com/kitti12911/lib-util/v3/config"
 	"github.com/kitti12911/lib-util/v3/logger"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
+	userv1 "oas-sandbox/gen/grpc/user/v1"
 	"oas-sandbox/internal/config"
 	"oas-sandbox/internal/server"
 )
@@ -55,8 +61,23 @@ func main() {
 	}
 	defer tracing.Shutdown(ctx, tp)
 
+	// Init gRPC clients
+	userAddr := net.JoinHostPort(cfg.UserService.Host, strconv.Itoa(cfg.UserService.Port))
+	userConn, err := grpc.NewClient(
+		userAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to connect to user service", "addr", userAddr, "error", err)
+		os.Exit(1)
+	}
+	defer userConn.Close()
+
+	slog.InfoContext(ctx, "connected to user service", "addr", userAddr)
+
 	// Start HTTP server
-	srv := server.NewHTTPServer(cfg.Service.Port, cfg.Service.Name)
+	srv := server.NewHTTPServer(cfg.Service.Port, cfg.Service.Name, userv1.NewUserServiceClient(userConn))
 
 	go func() {
 		if err := srv.Start(); err != nil && err != http.ErrServerClosed {

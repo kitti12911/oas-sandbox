@@ -22,3 +22,7 @@ profiling:
     basic_auth_user: ""
     basic_auth_password: ""
     tenant_id: ""
+
+user_service:
+    host: localhost
+    port: 50051

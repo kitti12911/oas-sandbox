@@ -13,6 +13,8 @@ generated clients from
 - downloadable OpenAPI documents at `/openapi.json/download` and
   `/openapi.yaml/download`
 - `/health` operational endpoint
+- `GET /v1/users/{id}` REST gateway to
+  [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
 - structured logs from [`lib-util`](https://github.com/kitti12911/lib-util)
 - tracing and profiling from
   [`lib-monitor`](https://github.com/kitti12911/lib-monitor)
@@ -22,6 +24,8 @@ generated clients from
 
 - go 1.26 or higher
 - [buf](https://buf.build/) for protobuf generation
+- running [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox) for user
+  API calls
 
 Optional:
 
@@ -37,7 +41,8 @@ oas-sandbox/
 │   └── grpc/                   # generated protobuf clients
 ├── internal/
 │   ├── api/
-│   │   └── system/             # health endpoint
+│   │   ├── system/             # health endpoint
+│   │   └── users/              # user REST resource
 │   ├── config/                 # config structs
 │   └── server/                 # Huma HTTP server and Swagger UI assets
 ├── buf.gen.yaml
@@ -62,6 +67,7 @@ Important sections:
 - `logging`: slog level and trace id injection
 - `tracing`: OTLP exporter settings
 - `profiling`: Pyroscope settings
+- `user_service`: gRPC address for `grpc-sandbox`
 
 ## generate code
 
@@ -87,12 +93,14 @@ Then open:
 - <http://localhost:8080/openapi.json/download>
 - <http://localhost:8080/openapi.yaml/download>
 - <http://localhost:8080/health>
+- <http://localhost:8080/v1/users/0198f8f0-0000-7000-8000-000000000001>
 
 ## API
 
 Implemented routes:
 
 - `GET /health`
+- `GET /v1/users/{id}`
 
 ## available commands
 
