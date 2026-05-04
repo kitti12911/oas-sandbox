@@ -224,7 +224,7 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 			}
 		]
 	}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/users", body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/search", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -264,8 +264,57 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 	assert.Equal(t, commonv1.OrderDirection_ORDER_DIRECTION_ASC, got.GetOrderBy()[1].GetOrder())
 }
 
+func TestCreateUserEndpoint(t *testing.T) {
+	var got *userv1.CreateUserRequest
+	client := fakeUserClient{createReq: &got}
+	srv := NewHTTPServer(0, "oas-sandbox", client)
+	body := strings.NewReader(`{
+		"email": "new@example.com",
+		"username": "new-user",
+		"displayName": "New User",
+		"status": "active",
+		"profile": {
+			"firstName": "New",
+			"lastName": "User",
+			"phoneNumber": "+66123",
+			"address": {
+				"line1": "123 Main St",
+				"line2": "Unit 10",
+				"city": "Bangkok",
+				"state": "Bangkok",
+				"postalCode": "10110",
+				"countryCode": "TH"
+			}
+		}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/users", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"id":"0198f8f0-0000-7000-8000-000000000099"`)
+
+	require.NotNil(t, got)
+	assert.Equal(t, "new@example.com", got.GetUser().GetEmail())
+	assert.Equal(t, "new-user", got.GetUser().GetUsername())
+	assert.Equal(t, "New User", got.GetUser().GetDisplayName())
+	assert.Equal(t, userv1.UserStatus_USER_STATUS_ACTIVE, got.GetUser().GetStatus())
+	assert.Equal(t, "New", got.GetUser().GetProfile().GetFirstName())
+	assert.Equal(t, "User", got.GetUser().GetProfile().GetLastName())
+	assert.Equal(t, "+66123", got.GetUser().GetProfile().GetPhoneNumber())
+	assert.Equal(t, "123 Main St", got.GetUser().GetProfile().GetAddress().GetLine1())
+	assert.Equal(t, "Unit 10", got.GetUser().GetProfile().GetAddress().GetLine2())
+	assert.Equal(t, "Bangkok", got.GetUser().GetProfile().GetAddress().GetCity())
+	assert.Equal(t, "Bangkok", got.GetUser().GetProfile().GetAddress().GetState())
+	assert.Equal(t, "10110", got.GetUser().GetProfile().GetAddress().GetPostalCode())
+	assert.Equal(t, "TH", got.GetUser().GetProfile().GetAddress().GetCountryCode())
+}
+
 type fakeUserClient struct {
-	listReq **userv1.ListUsersRequest
+	listReq   **userv1.ListUsersRequest
+	createReq **userv1.CreateUserRequest
 }
 
 func (fakeUserClient) GetUser(
@@ -319,12 +368,16 @@ func (c fakeUserClient) ListUsers(
 	}, nil
 }
 
-func (fakeUserClient) CreateUser(
-	context.Context,
-	*userv1.CreateUserRequest,
-	...grpc.CallOption,
+func (c fakeUserClient) CreateUser(
+	_ context.Context,
+	req *userv1.CreateUserRequest,
+	_ ...grpc.CallOption,
 ) (*userv1.CreateUserResponse, error) {
-	return &userv1.CreateUserResponse{}, nil
+	if c.createReq != nil {
+		*c.createReq = req
+	}
+
+	return &userv1.CreateUserResponse{Id: "0198f8f0-0000-7000-8000-000000000099"}, nil
 }
 
 func (fakeUserClient) UpdateUser(

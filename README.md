@@ -104,7 +104,8 @@ Implemented routes:
 
 - `GET /health`
 - `GET /v1/users`
-- `POST /v1/users`
+- `POST /v1/users` for create
+- `POST /v1/users/search` for advanced list/search
 - `GET /v1/users/{id}`
 
 `GET /v1/users` supports query parameters for the common gRPC list request:
@@ -113,7 +114,8 @@ Implemented routes:
 - `filterCol`, `filterOp`, `filterVal`, and `filterVals` for one filter clause
 - `orderBy` and `order` for one order clause
 
-Use `POST /v1/users` when the request needs multiple filters or order clauses:
+Use `POST /v1/users/search` when the request needs multiple filters or order
+clauses:
 
 ```json
 {

@@ -55,6 +55,44 @@ func userFromProto(user *userv1.User) User {
 	return out
 }
 
+func userToCreateProto(input *CreateUserInput) *userv1.User {
+	return &userv1.User{
+		Email:       input.Body.Email,
+		Username:    input.Body.Username,
+		DisplayName: input.Body.DisplayName,
+		Status:      statusToProto(input.Body.Status),
+		Profile:     profileToCreateProto(input.Body.Profile),
+	}
+}
+
+func profileToCreateProto(profile *CreateProfile) *userv1.UserProfile {
+	if profile == nil {
+		return nil
+	}
+
+	return &userv1.UserProfile{
+		FirstName:   profile.FirstName,
+		LastName:    profile.LastName,
+		PhoneNumber: profile.PhoneNumber,
+		Address:     addressToCreateProto(profile.Address),
+	}
+}
+
+func addressToCreateProto(address *CreateAddress) *userv1.UserAddress {
+	if address == nil {
+		return nil
+	}
+
+	return &userv1.UserAddress{
+		Line1:       address.Line1,
+		Line2:       address.Line2,
+		City:        address.City,
+		State:       address.State,
+		PostalCode:  address.PostalCode,
+		CountryCode: address.CountryCode,
+	}
+}
+
 func profileFromProto(profile *userv1.UserProfile) *Profile {
 	if profile == nil {
 		return nil
@@ -87,6 +125,18 @@ func addressFromProto(address *userv1.UserAddress) *Address {
 	}
 }
 
+func createUserFromProto(resp *userv1.CreateUserResponse) *CreateUserOutput {
+	if resp == nil {
+		return &CreateUserOutput{}
+	}
+
+	return &CreateUserOutput{
+		Body: CreateUserResult{
+			ID: resp.GetId(),
+		},
+	}
+}
+
 func statusFromProto(status userv1.UserStatus) string {
 	switch status {
 	case userv1.UserStatus_USER_STATUS_ACTIVE:
@@ -97,6 +147,19 @@ func statusFromProto(status userv1.UserStatus) string {
 		return "pending"
 	default:
 		return "unspecified"
+	}
+}
+
+func statusToProto(status string) userv1.UserStatus {
+	switch status {
+	case "active":
+		return userv1.UserStatus_USER_STATUS_ACTIVE
+	case "disabled":
+		return userv1.UserStatus_USER_STATUS_DISABLED
+	case "pending":
+		return userv1.UserStatus_USER_STATUS_PENDING
+	default:
+		return userv1.UserStatus_USER_STATUS_UNSPECIFIED
 	}
 }
 
