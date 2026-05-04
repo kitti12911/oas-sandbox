@@ -56,12 +56,20 @@ func userFromProto(user *userv1.User) User {
 }
 
 func userToCreateProto(input *CreateUserInput) *userv1.User {
+	return userRequestToProto(input.Body)
+}
+
+func userToUpdateProto(input *UpdateUserInput) *userv1.User {
+	return userRequestToProto(input.Body)
+}
+
+func userRequestToProto(user CreateUserRequest) *userv1.User {
 	return &userv1.User{
-		Email:       input.Body.Email,
-		Username:    input.Body.Username,
-		DisplayName: input.Body.DisplayName,
-		Status:      statusToProto(input.Body.Status),
-		Profile:     profileToCreateProto(input.Body.Profile),
+		Email:       user.Email,
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Status:      statusToProto(user.Status),
+		Profile:     profileToCreateProto(user.Profile),
 	}
 }
 

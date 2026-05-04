@@ -37,7 +37,7 @@ type Pagination struct {
 type Filter struct {
 	Col  string   `json:"col"            example:"username" doc:"Filter field"`
 	Op   string   `json:"op"             example:"like_ci"  doc:"Filter operation"`
-	Val  string   `json:"val,omitempty"  example:"new"      doc:"Single filter value"`
+	Val  string   `json:"val,omitempty"  example:"kit"      doc:"Single filter value"`
 	Vals []string `json:"vals,omitempty" example:"active"   doc:"Multiple filter values"`
 }
 
@@ -47,6 +47,12 @@ type OrderBy struct {
 }
 
 type CreateUserInput struct {
+	Body CreateUserRequest
+}
+
+type UpdateUserInput struct {
+	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
+
 	Body CreateUserRequest
 }
 

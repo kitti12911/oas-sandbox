@@ -56,4 +56,16 @@ func Register(h huma.API, deps api.Deps) {
 
 		return &UserOutput{Body: userFromProto(resp.GetUser())}, nil
 	}, humautil.WithTag(api.TagUsers))
+
+	huma.Put(h, "/users/{id}", func(ctx context.Context, input *UpdateUserInput) (*humautil.AffectedRowsOutput, error) {
+		resp, err := client.UpdateUser(ctx, &userv1.UpdateUserRequest{
+			Id:   input.ID,
+			User: userToUpdateProto(input),
+		})
+		if err != nil {
+			return nil, humautil.GRPCError(err)
+		}
+
+		return humautil.AffectedRows(resp.GetAffectedRows()), nil
+	}, humautil.WithTag(api.TagUsers))
 }

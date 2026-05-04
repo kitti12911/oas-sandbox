@@ -107,6 +107,7 @@ Implemented routes:
 - `POST /v1/users` for create
 - `POST /v1/users/search` for advanced list/search
 - `GET /v1/users/{id}`
+- `PUT /v1/users/{id}`
 
 `GET /v1/users` supports query parameters for the common gRPC list request:
 
