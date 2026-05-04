@@ -1,0 +1,24 @@
+service:
+    name: oas-sandbox
+    port: 8080
+    shutdown_timeout: 10s
+
+logging:
+    level: info
+    add_source: false
+    include_trace_id: true
+
+tracing:
+    enabled: true
+    endpoint: alloy.lan:4317
+    protocol: grpc
+    insecure: false
+    sample_ratio: 1.0
+
+profiling:
+    enabled: true
+    server_address: https://pyroscope-ingest.lan
+    namespace: oas-sandbox
+    basic_auth_user: ""
+    basic_auth_password: ""
+    tenant_id: ""

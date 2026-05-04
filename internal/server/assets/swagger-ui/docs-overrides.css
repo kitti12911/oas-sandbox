@@ -1,0 +1,84 @@
+.swagger-ui .model button,
+.swagger-ui .json-schema-2020-12-accordion,
+.swagger-ui .json-schema-2020-12-expand-deep-button,
+.swagger-ui .model-box-control,
+.swagger-ui .model-toggle,
+.swagger-ui .models-control,
+.swagger-ui .expand-methods {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.swagger-ui .model button,
+.swagger-ui .model button:hover,
+.swagger-ui .model button:active,
+.swagger-ui .model button:focus,
+.swagger-ui .model button:focus-visible,
+.swagger-ui .json-schema-2020-12-accordion,
+.swagger-ui .json-schema-2020-12-accordion:hover,
+.swagger-ui .json-schema-2020-12-accordion:active,
+.swagger-ui .json-schema-2020-12-accordion:focus,
+.swagger-ui .json-schema-2020-12-accordion:focus-visible,
+.swagger-ui .json-schema-2020-12-expand-deep-button,
+.swagger-ui .json-schema-2020-12-expand-deep-button:hover,
+.swagger-ui .json-schema-2020-12-expand-deep-button:active,
+.swagger-ui .json-schema-2020-12-expand-deep-button:focus,
+.swagger-ui .json-schema-2020-12-expand-deep-button:focus-visible,
+.swagger-ui .model-box-control,
+.swagger-ui .model-box-control:hover,
+.swagger-ui .model-box-control:active,
+.swagger-ui .model-box-control:focus,
+.swagger-ui .model-box-control:focus-visible,
+.swagger-ui .model-toggle,
+.swagger-ui .model-toggle:hover,
+.swagger-ui .model-toggle:active,
+.swagger-ui .model-toggle:focus,
+.swagger-ui .model-toggle:focus-visible,
+.swagger-ui .models-control,
+.swagger-ui .models-control:hover,
+.swagger-ui .models-control:active,
+.swagger-ui .models-control:focus,
+.swagger-ui .models-control:focus-visible,
+.swagger-ui .expand-methods,
+.swagger-ui .expand-methods:hover,
+.swagger-ui .expand-methods:active,
+.swagger-ui .expand-methods:focus,
+.swagger-ui .expand-methods:focus-visible {
+  background-color: transparent !important;
+  outline: 0;
+}
+
+.swagger-ui .model button *,
+.swagger-ui .json-schema-2020-12-accordion *,
+.swagger-ui .json-schema-2020-12-expand-deep-button *,
+.swagger-ui .model-box-control *,
+.swagger-ui .model-toggle *,
+.swagger-ui .models-control *,
+.swagger-ui .expand-methods * {
+  background-color: transparent !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.swagger-ui .model button::selection,
+.swagger-ui .model button *::selection,
+.swagger-ui .json-schema-2020-12-accordion::selection,
+.swagger-ui .json-schema-2020-12-accordion *::selection,
+.swagger-ui .json-schema-2020-12-expand-deep-button::selection,
+.swagger-ui .json-schema-2020-12-expand-deep-button *::selection,
+.swagger-ui .model-box-control::selection,
+.swagger-ui .model-box-control *::selection,
+.swagger-ui .model-toggle::selection,
+.swagger-ui .model-toggle *::selection,
+.swagger-ui .models-control::selection,
+.swagger-ui .models-control *::selection,
+.swagger-ui .expand-methods::selection,
+.swagger-ui .expand-methods *::selection {
+  background: transparent;
+}
