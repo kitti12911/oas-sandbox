@@ -8,8 +8,31 @@ type GetUserInput struct {
 	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
 }
 
+type ListUsersInput struct {
+	Page       int      `query:"page"       example:"1"        doc:"Page number"`
+	PageSize   int      `query:"pageSize"   example:"10"       doc:"Items per page"`
+	FilterCol  string   `query:"filterCol"  example:"username" doc:"Filter field"`
+	FilterOp   string   `query:"filterOp"   example:"like_ci"  doc:"Filter operation: exact, like, like_ci, gt, lt, gte, lte, null, not_null, in, between, between_exclusive"`
+	FilterVal  string   `query:"filterVal"  example:"kit"      doc:"Single filter value"`
+	FilterVals []string `query:"filterVals" example:"active"   doc:"Multiple filter values for in and between operations"`
+	OrderBy    string   `query:"orderBy"    example:"username" doc:"Order field"`
+	Order      string   `query:"order"      example:"asc"      doc:"Order direction: asc or desc"`
+}
+
 type UserOutput struct {
 	Body User
+}
+
+type UserListOutput struct {
+	Body UserList
+}
+
+type UserList struct {
+	Users      []User `json:"users"      doc:"Users for the current page"`
+	Page       int    `json:"page"       example:"1"  doc:"Current page"`
+	PageSize   int    `json:"pageSize"   example:"10" doc:"Items per page"`
+	TotalPages int    `json:"totalPages" example:"1"  doc:"Total pages"`
+	TotalSize  int    `json:"totalSize"  example:"1"  doc:"Total item count"`
 }
 
 type User struct {

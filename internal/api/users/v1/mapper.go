@@ -2,9 +2,33 @@ package usersv1
 
 import (
 	"github.com/kitti12911/lib-util/v3/protoutil"
+	"github.com/kitti12911/lib-util/v3/query"
 
+	commonv1 "oas-sandbox/gen/grpc/common/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 )
+
+func userListFromProto(resp *userv1.ListUsersResponse) *UserListOutput {
+	if resp == nil {
+		return &UserListOutput{}
+	}
+
+	users := make([]User, 0, len(resp.GetUsers()))
+	for _, user := range resp.GetUsers() {
+		users = append(users, userFromProto(user))
+	}
+
+	pagination := resp.GetPagination()
+	return &UserListOutput{
+		Body: UserList{
+			Users:      users,
+			Page:       int(pagination.GetPage()),
+			PageSize:   int(pagination.GetPageSize()),
+			TotalPages: int(pagination.GetTotalPages()),
+			TotalSize:  int(pagination.GetTotalSize()),
+		},
+	}
+}
 
 func userFromProto(user *userv1.User) User {
 	if user == nil {
@@ -71,5 +95,40 @@ func statusFromProto(status userv1.UserStatus) string {
 		return "pending"
 	default:
 		return "unspecified"
+	}
+}
+
+func paginationFromInput(input *ListUsersInput) *commonv1.PaginationRequest {
+	return &commonv1.PaginationRequest{
+		Page:     int32(input.Page),
+		PageSize: int32(input.PageSize),
+	}
+}
+
+func filtersFromInput(input *ListUsersInput) []*commonv1.Filter {
+	if input.FilterCol == "" {
+		return nil
+	}
+
+	return []*commonv1.Filter{
+		{
+			Col:  input.FilterCol,
+			Op:   query.FilterOpFromString[commonv1.FilterOp](input.FilterOp),
+			Val:  input.FilterVal,
+			Vals: input.FilterVals,
+		},
+	}
+}
+
+func orderByFromInput(input *ListUsersInput) []*commonv1.OrderBy {
+	if input.OrderBy == "" {
+		return nil
+	}
+
+	return []*commonv1.OrderBy{
+		{
+			Col:   input.OrderBy,
+			Order: query.OrderDirectionFromString[commonv1.OrderDirection](input.Order),
+		},
 	}
 }

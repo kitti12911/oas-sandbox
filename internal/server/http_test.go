@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -36,8 +37,8 @@ func TestHTTPServerOpenAPI(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), `"title":"OAS Sandbox"`)
+	assert.Contains(t, rec.Body.String(), `"/v1/users"`)
 	assert.Contains(t, rec.Body.String(), `"/v1/users/{id}"`)
-	assert.NotContains(t, rec.Body.String(), `"/v1/users":`)
 }
 
 func TestDocsServesSwaggerUIOfflineAndAllowsDownloads(t *testing.T) {
@@ -144,7 +145,45 @@ func TestGetUserEndpoint(t *testing.T) {
 	assert.Contains(t, body, `"countryCode":"TH"`)
 }
 
-type fakeUserClient struct{}
+func TestListUsersEndpoint(t *testing.T) {
+	var got *userv1.ListUsersRequest
+	client := fakeUserClient{listReq: &got}
+	srv := NewHTTPServer(0, "oas-sandbox", client)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/users?page=2&pageSize=5&filterCol=username&filterOp=like_ci&filterVal=kit&orderBy=username&order=desc",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `"users":[`)
+	assert.Contains(t, body, `"username":"kitti"`)
+	assert.Contains(t, body, `"page":2`)
+	assert.Contains(t, body, `"pageSize":5`)
+	assert.Contains(t, body, `"totalPages":4`)
+	assert.Contains(t, body, `"totalSize":20`)
+
+	require.NotNil(t, got)
+	assert.Equal(t, int32(2), got.GetPagination().GetPage())
+	assert.Equal(t, int32(5), got.GetPagination().GetPageSize())
+
+	require.Len(t, got.GetFilters(), 1)
+	assert.Equal(t, "username", got.GetFilters()[0].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE_CI, got.GetFilters()[0].GetOp())
+	assert.Equal(t, "kit", got.GetFilters()[0].GetVal())
+
+	require.Len(t, got.GetOrderBy(), 1)
+	assert.Equal(t, "username", got.GetOrderBy()[0].GetCol())
+	assert.Equal(t, commonv1.OrderDirection_ORDER_DIRECTION_DESC, got.GetOrderBy()[0].GetOrder())
+}
+
+type fakeUserClient struct {
+	listReq **userv1.ListUsersRequest
+}
 
 func (fakeUserClient) GetUser(
 	_ context.Context,
@@ -158,37 +197,43 @@ func (fakeUserClient) GetUser(
 	line1 := "123 Main St"
 	city := "Bangkok"
 	countryCode := "TH"
-	now := time.Date(2026, 5, 4, 10, 30, 0, 0, time.UTC)
 
 	return &userv1.GetUserResponse{
-		User: &userv1.User{
-			Id:          req.GetId(),
-			Email:       "kitti@example.com",
-			Username:    "kitti",
-			DisplayName: &displayName,
-			Status:      userv1.UserStatus_USER_STATUS_ACTIVE,
-			Profile: &userv1.UserProfile{
-				FirstName:   &firstName,
-				LastName:    &lastName,
-				PhoneNumber: &phoneNumber,
-				Address: &userv1.UserAddress{
-					Line1:       &line1,
-					City:        &city,
-					CountryCode: &countryCode,
-				},
-			},
-			CreatedAt: timestamppb.New(now),
-			UpdatedAt: timestamppb.New(now),
-		},
+		User: fakeUser(req.GetId(), "kitti@example.com", "kitti", displayName, firstName, lastName, phoneNumber, line1, city, countryCode),
 	}, nil
 }
 
-func (fakeUserClient) ListUsers(
-	context.Context,
-	*userv1.ListUsersRequest,
-	...grpc.CallOption,
+func (c fakeUserClient) ListUsers(
+	_ context.Context,
+	req *userv1.ListUsersRequest,
+	_ ...grpc.CallOption,
 ) (*userv1.ListUsersResponse, error) {
-	return &userv1.ListUsersResponse{Pagination: &commonv1.PaginationResponse{}}, nil
+	if c.listReq != nil {
+		*c.listReq = req
+	}
+
+	return &userv1.ListUsersResponse{
+		Users: []*userv1.User{
+			fakeUser(
+				"0198f8f0-0000-7000-8000-000000000001",
+				"kitti@example.com",
+				"kitti",
+				"Kitti",
+				"Kitti",
+				"User",
+				"+66000",
+				"123 Main St",
+				"Bangkok",
+				"TH",
+			),
+		},
+		Pagination: &commonv1.PaginationResponse{
+			Page:       2,
+			PageSize:   5,
+			TotalPages: 4,
+			TotalSize:  20,
+		},
+	}, nil
 }
 
 func (fakeUserClient) CreateUser(
@@ -221,4 +266,39 @@ func (fakeUserClient) DeleteUser(
 	...grpc.CallOption,
 ) (*userv1.DeleteUserResponse, error) {
 	return &userv1.DeleteUserResponse{}, nil
+}
+
+func fakeUser(
+	id string,
+	email string,
+	username string,
+	displayName string,
+	firstName string,
+	lastName string,
+	phoneNumber string,
+	line1 string,
+	city string,
+	countryCode string,
+) *userv1.User {
+	now := time.Date(2026, 5, 4, 10, 30, 0, 0, time.UTC)
+
+	return &userv1.User{
+		Id:          id,
+		Email:       email,
+		Username:    username,
+		DisplayName: &displayName,
+		Status:      userv1.UserStatus_USER_STATUS_ACTIVE,
+		Profile: &userv1.UserProfile{
+			FirstName:   &firstName,
+			LastName:    &lastName,
+			PhoneNumber: &phoneNumber,
+			Address: &userv1.UserAddress{
+				Line1:       &line1,
+				City:        &city,
+				CountryCode: &countryCode,
+			},
+		},
+		CreatedAt: timestamppb.New(now),
+		UpdatedAt: timestamppb.New(now),
+	}
 }

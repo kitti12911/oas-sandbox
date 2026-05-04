@@ -13,6 +13,19 @@ import (
 func Register(h huma.API, deps api.Deps) {
 	client := deps.UserClient
 
+	huma.Get(h, "/users", func(ctx context.Context, input *ListUsersInput) (*UserListOutput, error) {
+		resp, err := client.ListUsers(ctx, &userv1.ListUsersRequest{
+			Pagination: paginationFromInput(input),
+			Filters:    filtersFromInput(input),
+			OrderBy:    orderByFromInput(input),
+		})
+		if err != nil {
+			return nil, humautil.GRPCError(err)
+		}
+
+		return userListFromProto(resp), nil
+	}, humautil.WithTag(api.TagUsers))
+
 	huma.Get(h, "/users/{id}", func(ctx context.Context, input *GetUserInput) (*UserOutput, error) {
 		resp, err := client.GetUser(ctx, &userv1.GetUserRequest{Id: input.ID})
 		if err != nil {

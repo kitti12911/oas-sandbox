@@ -13,6 +13,8 @@ generated clients from
 - downloadable OpenAPI documents at `/openapi.json/download` and
   `/openapi.yaml/download`
 - `/health` operational endpoint
+- `GET /v1/users` REST gateway to
+  [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
 - `GET /v1/users/{id}` REST gateway to
   [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
 - structured logs from [`lib-util`](https://github.com/kitti12911/lib-util)
@@ -93,6 +95,7 @@ Then open:
 - <http://localhost:8080/openapi.json/download>
 - <http://localhost:8080/openapi.yaml/download>
 - <http://localhost:8080/health>
+- <http://localhost:8080/v1/users?page=1&pageSize=10>
 - <http://localhost:8080/v1/users/0198f8f0-0000-7000-8000-000000000001>
 
 ## API
@@ -100,7 +103,15 @@ Then open:
 Implemented routes:
 
 - `GET /health`
+- `GET /v1/users`
 - `GET /v1/users/{id}`
+
+`GET /v1/users` supports query parameters for the common gRPC list request:
+
+- `page` and `pageSize` for pagination
+- `filterCol`, `filterOp`, `filterVal`, and repeated `filterVals` for one
+  filter clause
+- `orderBy` and `order` for one order clause
 
 ## available commands
 
