@@ -27,11 +27,14 @@ fix:
 	go fix ./...
 
 # ____________________ Generate Command ____________________
-gen: gen-proto gen-openapi
+gen: gen-proto gen-patch gen-openapi
 
 gen-proto:
 	rm -rf gen/grpc
 	buf generate https://github.com/kitti12911/proto-sandbox.git --path common/v1 --path user/v1
+
+gen-patch:
+	go run ./cmd/gen-patch
 
 gen-openapi:
 	@echo "Huma generates OpenAPI at runtime: /openapi.json and /openapi.yaml"

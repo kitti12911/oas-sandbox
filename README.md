@@ -79,7 +79,9 @@ make gen
 
 `make gen` runs protobuf generation from
 [`github.com/kitti12911/proto-sandbox`](https://github.com/kitti12911/proto-sandbox).
-Huma generates OpenAPI at runtime from Go route and DTO types.
+It also runs `gen-patch`, which generates tri-state PATCH mappers from
+`//openapi:patch` markers. Huma generates OpenAPI at runtime from Go route and
+DTO types.
 
 ## run locally
 
@@ -108,6 +110,7 @@ Implemented routes:
 - `POST /v1/users/search` for advanced list/search
 - `GET /v1/users/{id}`
 - `PUT /v1/users/{id}`
+- `PATCH /v1/users/{id}`
 
 `GET /v1/users` supports query parameters for the common gRPC list request:
 
@@ -149,6 +152,26 @@ clauses:
 }
 ```
 
+`PATCH /v1/users/{id}` builds its field mask from the JSON body:
+
+- omitted fields are ignored
+- `null` fields are written as null
+- fields with values are updated
+
+Example patch:
+
+```json
+{
+    "displayName": null,
+    "profile": {
+        "firstName": "Patched",
+        "address": {
+            "city": "Phuket"
+        }
+    }
+}
+```
+
 ## available commands
 
 ```bash
@@ -159,5 +182,6 @@ make format
 make test
 make cov
 make gen
+make gen-patch
 make run
 ```

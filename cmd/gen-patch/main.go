@@ -1,0 +1,412 @@
+// Command gen-patch generates tri-state PATCH mappers for Huma request types.
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+const (
+	apiRoot       = "internal/api"
+	generatedFile = "patch_gen.go"
+)
+
+var markerRe = regexp.MustCompile(`//\s*openapi:patch\s+proto=([\w./]+)`)
+
+type patchType struct {
+	dir         string
+	pkg         string
+	inputType   string
+	requestType string
+	funcName    string
+	protoAlias  string
+	protoType   string
+	protoImport string
+	fields      []field
+}
+
+type field struct {
+	goName    string
+	jsonName  string
+	maskPath  string
+	valuePath string
+	protoPath string
+	innerType string
+	converter string
+	protoType string
+	pointer   bool
+	nested    []field
+}
+
+func main() {
+	patches, err := scan(apiRoot)
+	if err != nil {
+		panic(err)
+	}
+	for _, patch := range patches {
+		out := filepath.Join(patch.dir, generatedFile)
+		if err := generate(out, patch); err != nil {
+			panic(err)
+		}
+		fmt.Printf("generated %s\n", out)
+	}
+}
+
+func scan(root string) ([]patchType, error) {
+	fset := token.NewFileSet()
+	byDir := map[string][]string{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || filepath.Base(path) == generatedFile {
+			return nil
+		}
+		byDir[filepath.Dir(path)] = append(byDir[filepath.Dir(path)], path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var patches []patchType
+	for dir, files := range byDir {
+		sort.Strings(files)
+		models := map[string]*ast.StructType{}
+		imports := map[string]string{}
+		pkg := ""
+		for _, path := range files {
+			file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil, err
+			}
+			pkg = file.Name.Name
+			for alias, path := range importMap(file) {
+				imports[alias] = path
+			}
+			for _, decl := range file.Decls {
+				gen, ok := decl.(*ast.GenDecl)
+				if !ok || gen.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range gen.Specs {
+					ts, ok := spec.(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+					st, ok := ts.Type.(*ast.StructType)
+					if ok {
+						models[ts.Name.Name] = st
+					}
+				}
+			}
+		}
+
+		for _, path := range files {
+			file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+			if err != nil {
+				return nil, err
+			}
+			for _, decl := range file.Decls {
+				gen, ok := decl.(*ast.GenDecl)
+				if !ok || gen.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range gen.Specs {
+					ts, ok := spec.(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+					doc := ts.Doc
+					if doc == nil {
+						doc = gen.Doc
+					}
+					marker := findMarker(doc)
+					if marker == "" {
+						continue
+					}
+					alias, protoType, ok := strings.Cut(marker, ".")
+					if !ok {
+						return nil, fmt.Errorf("%s marker must be alias.Type", ts.Name.Name)
+					}
+					protoImport := imports[alias]
+					fields, err := collectFields(models, ts.Name.Name, "", "input.Body", "msg")
+					if err != nil {
+						return nil, err
+					}
+					requestType := ts.Name.Name
+					patches = append(patches, patchType{
+						dir:         dir,
+						pkg:         pkg,
+						inputType:   strings.TrimSuffix(requestType, "Request") + "Input",
+						requestType: requestType,
+						funcName:    lowerFirst(strings.TrimSuffix(requestType, "Request")) + "Patch",
+						protoAlias:  alias,
+						protoType:   protoType,
+						protoImport: protoImport,
+						fields:      fields,
+					})
+				}
+			}
+		}
+	}
+
+	sort.Slice(patches, func(i, j int) bool { return patches[i].dir < patches[j].dir })
+	return patches, nil
+}
+
+func collectFields(models map[string]*ast.StructType, typeName, prefix, valueBase, protoBase string) ([]field, error) {
+	st := models[typeName]
+	if st == nil {
+		return nil, fmt.Errorf("unknown patch type %s", typeName)
+	}
+	var fields []field
+	for _, f := range st.Fields.List {
+		for _, name := range f.Names {
+			inner, ok := patchInnerType(f.Type)
+			if !ok {
+				continue
+			}
+			jsonName := jsonTagName(f.Tag, name.Name)
+			maskPath := camelToSnake(jsonName)
+			if prefix != "" {
+				maskPath = prefix + "." + maskPath
+			}
+			opts := patchOptions(f.Tag)
+			info := field{
+				goName:    name.Name,
+				jsonName:  jsonName,
+				maskPath:  maskPath,
+				valuePath: valueBase + "." + name.Name,
+				protoPath: protoBase + "." + name.Name,
+				innerType: inner,
+				converter: opts["converter"],
+				protoType: opts["proto"],
+				pointer:   opts["ptr"] == "true",
+			}
+			if _, ok := models[inner]; ok {
+				nestedProtoBase := info.protoPath
+				info.nested, _ = collectFields(models, inner, maskPath, info.valuePath+".Value", nestedProtoBase)
+			}
+			fields = append(fields, info)
+		}
+	}
+	return fields, nil
+}
+
+func generate(path string, patch patchType) error {
+	var buf bytes.Buffer
+	buf.WriteString("// Code generated by gen-patch; DO NOT EDIT.\n\n")
+	fmt.Fprintf(&buf, "package %s\n\n", patch.pkg)
+	buf.WriteString("import (\n")
+	buf.WriteString("\tfieldmaskpb \"google.golang.org/protobuf/types/known/fieldmaskpb\"\n\n")
+	fmt.Fprintf(&buf, "\t%s %q\n", patch.protoAlias, patch.protoImport)
+	buf.WriteString(")\n\n")
+
+	fmt.Fprintf(&buf, "func %s(input *%s) (*%s.%s, *fieldmaskpb.FieldMask) {\n", patch.funcName, patch.inputType, patch.protoAlias, patch.protoType)
+	fmt.Fprintf(&buf, "\tmsg := &%s.%s{}\n", patch.protoAlias, patch.protoType)
+	buf.WriteString("\tmask := &fieldmaskpb.FieldMask{}\n\n")
+	for _, f := range patch.fields {
+		writeField(&buf, patch.protoAlias, f)
+	}
+	buf.WriteString("\n\treturn msg, mask\n}\n")
+
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("format: %w\n%s", err, buf.String())
+	}
+	return os.WriteFile(path, formatted, 0o644)
+}
+
+func writeField(buf *bytes.Buffer, protoAlias string, f field) {
+	fmt.Fprintf(buf, "\tif %s.Set {\n", f.valuePath)
+	if len(f.nested) > 0 {
+		fmt.Fprintf(buf, "\t\tif %s.Null {\n", f.valuePath)
+		fmt.Fprintf(buf, "\t\t\tmask.Paths = append(mask.Paths, %q)\n", f.maskPath)
+		buf.WriteString("\t\t} else {\n")
+		if f.protoType != "" {
+			fmt.Fprintf(buf, "\t\t\t%s = &%s.%s{}\n", f.protoPath, protoAlias, f.protoType)
+		}
+		for _, nested := range f.nested {
+			writeNestedField(buf, protoAlias, nested, 3)
+		}
+		buf.WriteString("\t\t}\n")
+	} else {
+		fmt.Fprintf(buf, "\t\tif !%s.Null {\n", f.valuePath)
+		writeAssign(buf, f, 3)
+		buf.WriteString("\t\t}\n")
+		fmt.Fprintf(buf, "\t\tmask.Paths = append(mask.Paths, %q)\n", f.maskPath)
+	}
+	buf.WriteString("\t}\n")
+}
+
+func writeNestedField(buf *bytes.Buffer, protoAlias string, f field, indent int) {
+	t := strings.Repeat("\t", indent)
+	fmt.Fprintf(buf, "%sif %s.Set {\n", t, f.valuePath)
+	if len(f.nested) > 0 {
+		fmt.Fprintf(buf, "%s\tif %s.Null {\n", t, f.valuePath)
+		fmt.Fprintf(buf, "%s\t\tmask.Paths = append(mask.Paths, %q)\n", t, f.maskPath)
+		fmt.Fprintf(buf, "%s\t} else {\n", t)
+		if f.protoType != "" {
+			fmt.Fprintf(buf, "%s\t\t%s = &%s.%s{}\n", t, f.protoPath, protoAlias, f.protoType)
+		}
+		for _, nested := range f.nested {
+			writeNestedField(buf, protoAlias, nested, indent+2)
+		}
+		fmt.Fprintf(buf, "%s\t}\n", t)
+	} else {
+		fmt.Fprintf(buf, "%s\tif !%s.Null {\n", t, f.valuePath)
+		writeAssign(buf, f, indent+2)
+		fmt.Fprintf(buf, "%s\t}\n", t)
+		fmt.Fprintf(buf, "%s\tmask.Paths = append(mask.Paths, %q)\n", t, f.maskPath)
+	}
+	fmt.Fprintf(buf, "%s}\n", t)
+}
+
+func writeAssign(buf *bytes.Buffer, f field, indent int) {
+	t := strings.Repeat("\t", indent)
+	value := f.valuePath + ".Value"
+	if f.converter != "" {
+		value = f.converter + "(" + value + ")"
+	}
+	if f.pointer {
+		fmt.Fprintf(buf, "%s%s = &%s.Value\n", t, f.protoPath, f.valuePath)
+		return
+	}
+	fmt.Fprintf(buf, "%s%s = %s\n", t, f.protoPath, value)
+}
+
+func findMarker(group *ast.CommentGroup) string {
+	if group == nil {
+		return ""
+	}
+	for _, c := range group.List {
+		if match := markerRe.FindStringSubmatch(c.Text); match != nil {
+			return match[1]
+		}
+	}
+	return ""
+}
+
+func importMap(f *ast.File) map[string]string {
+	out := map[string]string{}
+	for _, imp := range f.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			continue
+		}
+		alias := filepath.Base(path)
+		if imp.Name != nil {
+			alias = imp.Name.Name
+		}
+		out[alias] = path
+	}
+	return out
+}
+
+func patchInnerType(expr ast.Expr) (string, bool) {
+	idx, ok := expr.(*ast.IndexExpr)
+	if !ok {
+		return "", false
+	}
+	if !isPatchIdent(idx.X) {
+		return "", false
+	}
+	return exprName(idx.Index), true
+}
+
+func isPatchIdent(expr ast.Expr) bool {
+	switch x := expr.(type) {
+	case *ast.Ident:
+		return x.Name == "Patch"
+	case *ast.SelectorExpr:
+		return x.Sel.Name == "Patch"
+	default:
+		return false
+	}
+}
+
+func exprName(expr ast.Expr) string {
+	switch x := expr.(type) {
+	case *ast.Ident:
+		return x.Name
+	case *ast.SelectorExpr:
+		return x.Sel.Name
+	default:
+		return ""
+	}
+}
+
+func jsonTagName(tag *ast.BasicLit, fallback string) string {
+	value := structTag(tag, "json")
+	name, _, _ := strings.Cut(value, ",")
+	if name == "" || name == "-" {
+		return fallback
+	}
+	return name
+}
+
+func patchOptions(tag *ast.BasicLit) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(structTag(tag, "patch"), ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(part, "=")
+		if !ok {
+			value = "true"
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func structTag(tag *ast.BasicLit, key string) string {
+	if tag == nil {
+		return ""
+	}
+	raw, err := strconv.Unquote(tag.Value)
+	if err != nil {
+		return ""
+	}
+	return reflect.StructTag(raw).Get(key)
+}
+
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToLower(r[0])
+	return string(r)
+}
+
+func camelToSnake(s string) string {
+	var b strings.Builder
+	runes := []rune(s)
+	for i, r := range runes {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteRune(unicode.ToLower(r))
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

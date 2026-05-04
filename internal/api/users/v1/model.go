@@ -2,7 +2,13 @@ package usersv1
 
 import (
 	"time"
+
+	humautil "github.com/kitti12911/lib-util/v3/huma"
+
+	userv1 "oas-sandbox/gen/grpc/user/v1"
 )
+
+var _ userv1.User
 
 type GetUserInput struct {
 	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
@@ -56,12 +62,43 @@ type UpdateUserInput struct {
 	Body CreateUserRequest
 }
 
+type PatchUserInput struct {
+	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
+
+	Body PatchUserRequest
+}
+
 type CreateUserRequest struct {
 	Email       string         `json:"email"                 example:"kitti@example.com" doc:"Email address"`
 	Username    string         `json:"username"              example:"kitti"             doc:"Username"`
 	DisplayName *string        `json:"displayName,omitempty" example:"Kitti"             doc:"Display name"`
 	Status      string         `json:"status"                example:"active"            doc:"User status"`
 	Profile     *CreateProfile `json:"profile,omitempty"                               doc:"User profile"`
+}
+
+//openapi:patch proto=userv1.User
+type PatchUserRequest struct {
+	Email       humautil.Patch[string]       `json:"email"       required:"false" example:"kitti@example.com" doc:"Email address"`
+	Username    humautil.Patch[string]       `json:"username"    required:"false" example:"kitti"             doc:"Username"`
+	DisplayName humautil.Patch[string]       `json:"displayName" required:"false" example:"Kitti"             doc:"Display name" patch:"ptr"`
+	Status      humautil.Patch[string]       `json:"status"      required:"false" example:"active"            doc:"User status" patch:"converter=statusToProto"`
+	Profile     humautil.Patch[PatchProfile] `json:"profile"     required:"false"                           doc:"User profile" patch:"proto=UserProfile"`
+}
+
+type PatchProfile struct {
+	FirstName   humautil.Patch[string]       `json:"firstName"   required:"false" example:"Kitti"  doc:"First name" patch:"ptr"`
+	LastName    humautil.Patch[string]       `json:"lastName"    required:"false" example:"User"   doc:"Last name" patch:"ptr"`
+	PhoneNumber humautil.Patch[string]       `json:"phoneNumber" required:"false" example:"+66000" doc:"Phone number" patch:"ptr"`
+	Address     humautil.Patch[PatchAddress] `json:"address"     required:"false"                  doc:"Address" patch:"proto=UserAddress"`
+}
+
+type PatchAddress struct {
+	Line1       humautil.Patch[string] `json:"line1"       required:"false" example:"123 Main St" doc:"Address line 1" patch:"ptr"`
+	Line2       humautil.Patch[string] `json:"line2"       required:"false" example:"Unit 10"     doc:"Address line 2" patch:"ptr"`
+	City        humautil.Patch[string] `json:"city"        required:"false" example:"Bangkok"     doc:"City" patch:"ptr"`
+	State       humautil.Patch[string] `json:"state"       required:"false" example:"Bangkok"     doc:"State or province" patch:"ptr"`
+	PostalCode  humautil.Patch[string] `json:"postalCode"  required:"false" example:"10110"       doc:"Postal code" patch:"ptr"`
+	CountryCode humautil.Patch[string] `json:"countryCode" required:"false" example:"TH"          doc:"ISO country code" patch:"ptr"`
 }
 
 type CreateProfile struct {

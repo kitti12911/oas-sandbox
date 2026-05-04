@@ -355,10 +355,56 @@ func TestUpdateUserEndpoint(t *testing.T) {
 	assert.Equal(t, "TH", got.GetUser().GetProfile().GetAddress().GetCountryCode())
 }
 
+func TestPatchUserEndpoint(t *testing.T) {
+	var got *userv1.PatchUserRequest
+	client := fakeUserClient{patchReq: &got}
+	srv := NewHTTPServer(0, "oas-sandbox", client)
+	body := strings.NewReader(`{
+		"username": "patched-user",
+		"displayName": null,
+		"profile": {
+			"firstName": null,
+			"address": {
+				"city": "Phuket"
+			}
+		}
+	}`)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"affectedRows":1`)
+
+	require.NotNil(t, got)
+	assert.Equal(t, "0198f8f0-0000-7000-8000-000000000001", got.GetId())
+	assert.Equal(t, []string{"username", "display_name", "profile.first_name", "profile.address.city"}, got.GetUpdateMask().GetPaths())
+	assert.Equal(t, "patched-user", got.GetUser().GetUsername())
+	assert.Nil(t, got.GetUser().DisplayName)
+	assert.Nil(t, got.GetUser().GetProfile().FirstName)
+	assert.Equal(t, "Phuket", got.GetUser().GetProfile().GetAddress().GetCity())
+}
+
+func TestPatchUserEndpointRejectsEmptyBody(t *testing.T) {
+	client := fakeUserClient{}
+	srv := NewHTTPServer(0, "oas-sandbox", client)
+	req := httptest.NewRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "at least one field is required")
+}
+
 type fakeUserClient struct {
 	listReq   **userv1.ListUsersRequest
 	createReq **userv1.CreateUserRequest
 	updateReq **userv1.UpdateUserRequest
+	patchReq  **userv1.PatchUserRequest
 }
 
 func (fakeUserClient) GetUser(
@@ -436,12 +482,16 @@ func (c fakeUserClient) UpdateUser(
 	return &userv1.UpdateUserResponse{AffectedRows: 1}, nil
 }
 
-func (fakeUserClient) PatchUser(
-	context.Context,
-	*userv1.PatchUserRequest,
-	...grpc.CallOption,
+func (c fakeUserClient) PatchUser(
+	_ context.Context,
+	req *userv1.PatchUserRequest,
+	_ ...grpc.CallOption,
 ) (*userv1.PatchUserResponse, error) {
-	return &userv1.PatchUserResponse{}, nil
+	if c.patchReq != nil {
+		*c.patchReq = req
+	}
+
+	return &userv1.PatchUserResponse{AffectedRows: 1}, nil
 }
 
 func (fakeUserClient) DeleteUser(

@@ -68,4 +68,22 @@ func Register(h huma.API, deps api.Deps) {
 
 		return humautil.AffectedRows(resp.GetAffectedRows()), nil
 	}, humautil.WithTag(api.TagUsers))
+
+	huma.Patch(h, "/users/{id}", func(ctx context.Context, input *PatchUserInput) (*humautil.AffectedRowsOutput, error) {
+		user, updateMask := patchUserPatch(input)
+		if len(updateMask.GetPaths()) == 0 {
+			return nil, huma.Error400BadRequest("at least one field is required")
+		}
+
+		resp, err := client.PatchUser(ctx, &userv1.PatchUserRequest{
+			Id:         input.ID,
+			User:       user,
+			UpdateMask: updateMask,
+		})
+		if err != nil {
+			return nil, humautil.GRPCError(err)
+		}
+
+		return humautil.AffectedRows(resp.GetAffectedRows()), nil
+	}, humautil.WithTag(api.TagUsers))
 }
