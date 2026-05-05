@@ -138,6 +138,15 @@ type MockUser struct {
 	Username string `json:"username" example:"mock"      doc:"Mock username"`
 }
 
+type MockUserStatusOutput struct {
+	Body MockUserStatus
+}
+
+type MockUserStatus struct {
+	ID     string `json:"id"     example:"mock-user" doc:"Mock user ID"`
+	Status string `json:"status" example:"active"    doc:"Mock user status"`
+}
+
 type UserListOutput struct {
 	Body UserList
 }
