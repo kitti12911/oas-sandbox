@@ -65,7 +65,7 @@ type change struct {
 	Attributes  map[string]any `json:"attributes"`
 }
 
-var versionedPathRe = regexp.MustCompile(`^/v([0-9]+)(/.*)?$`)
+var versionedPathRe = regexp.MustCompile(`^/v(\d+)(/.*)?$`)
 
 func main() {
 	os.Exit(run())
@@ -276,7 +276,7 @@ func versionBumpForEndpoint(endpoint endpoint, base map[string]versionedEndpoint
 	}, true
 }
 
-func parseVersionedPath(path string) (int, string, bool) {
+func parseVersionedPath(path string) (version int, normalizedPath string, ok bool) {
 	matches := versionedPathRe.FindStringSubmatch(path)
 	if matches == nil {
 		return 0, "", false

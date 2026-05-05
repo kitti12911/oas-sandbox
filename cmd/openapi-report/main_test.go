@@ -104,8 +104,8 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	os.Stdout = writer
 	fn()
-	if err := writer.Close(); err != nil {
-		t.Fatalf("close stdout writer: %v", err)
+	if closeErr := writer.Close(); closeErr != nil {
+		t.Fatalf("close stdout writer: %v", closeErr)
 	}
 	os.Stdout = oldStdout
 
