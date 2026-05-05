@@ -79,7 +79,6 @@ type MockUserOutput struct {
 type MockUser struct {
 	ID       string `json:"id"       example:"mock-user-v1" doc:"Mock user ID"`
 	Username string `json:"username" example:"mock"         doc:"Mock username"`
-	Status   string `json:"status"   example:"active"       doc:"Mock user status"`
 }
 
 type CreateUserRequest struct {

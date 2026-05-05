@@ -103,7 +103,6 @@ func RegisterMockV2(h huma.API) {
 			Body: MockUser{
 				ID:       "mock-user-v2",
 				Username: "mock",
-				Status:   "active",
 			},
 		}, nil
 	}, humautil.WithTag(api.TagUsers))
