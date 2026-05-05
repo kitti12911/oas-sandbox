@@ -72,15 +72,6 @@ type DeleteUserInput struct {
 	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
 }
 
-type MockUserOutput struct {
-	Body MockUser
-}
-
-type MockUser struct {
-	ID       string `json:"id"       example:"mock-user-v1" doc:"Mock user ID"`
-	Username string `json:"username" example:"mock"         doc:"Mock username"`
-}
-
 type CreateUserRequest struct {
 	Email       string         `json:"email"                 example:"kitti@example.com" doc:"Email address"`
 	Username    string         `json:"username"              example:"kitti"             doc:"Username"`

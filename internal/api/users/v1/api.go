@@ -96,14 +96,3 @@ func Register(h huma.API, deps api.Deps) {
 		return humautil.AffectedRows(resp.GetAffectedRows()), nil
 	}, humautil.WithTag(api.TagUsers))
 }
-
-func RegisterMockV2(h huma.API) {
-	huma.Get(h, "/users/mock", func(ctx context.Context, input *struct{}) (*MockUserOutput, error) {
-		return &MockUserOutput{
-			Body: MockUser{
-				ID:       "mock-user-v2",
-				Username: "mock",
-			},
-		}, nil
-	}, humautil.WithTag(api.TagUsers))
-}
