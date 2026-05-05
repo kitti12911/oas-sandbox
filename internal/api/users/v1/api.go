@@ -57,6 +57,15 @@ func Register(h huma.API, deps api.Deps) {
 		}, nil
 	}, humautil.WithTag(api.TagUsers))
 
+	huma.Get(h, "/users/mock/status", func(ctx context.Context, input *struct{}) (*MockUserStatusOutput, error) {
+		return &MockUserStatusOutput{
+			Body: MockUserStatus{
+				ID:     "mock-user",
+				Status: "active",
+			},
+		}, nil
+	}, humautil.WithTag(api.TagUsers))
+
 	huma.Get(h, "/users/{id}", func(ctx context.Context, input *GetUserInput) (*UserOutput, error) {
 		resp, err := client.GetUser(ctx, &userv1.GetUserRequest{Id: input.ID})
 		if err != nil {
@@ -94,5 +103,16 @@ func Register(h huma.API, deps api.Deps) {
 		}
 
 		return humautil.AffectedRows(resp.GetAffectedRows()), nil
+	}, humautil.WithTag(api.TagUsers))
+}
+
+func RegisterV2(h huma.API, deps api.Deps) {
+	huma.Get(h, "/users/mock", func(ctx context.Context, input *struct{}) (*MockUserOutput, error) {
+		return &MockUserOutput{
+			Body: MockUser{
+				ID:       "mock-user-v2",
+				Username: "mock-v2",
+			},
+		}, nil
 	}, humautil.WithTag(api.TagUsers))
 }
