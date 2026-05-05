@@ -67,6 +67,32 @@ func TestAddedAndBumpedEndpointsClassifiesVersionBumps(t *testing.T) {
 	}
 }
 
+func TestReadBreakingChangesAcceptsNumericLevel(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "breaking-*.json")
+	if err != nil {
+		t.Fatalf("create breaking json: %v", err)
+	}
+
+	_, err = file.WriteString(`[{"id":"api-path-removed-without-deprecation","text":"api path removed without deprecation","level":3,"operation":"GET","operationId":"get-v1-users-mock","path":"/v1/users/mock","section":"paths"}]`)
+	if err != nil {
+		t.Fatalf("write breaking json: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close breaking json: %v", err)
+	}
+
+	changes, err := readBreakingChanges(file.Name())
+	if err != nil {
+		t.Fatalf("read breaking changes: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 breaking change, got %d", len(changes))
+	}
+	if api := changeAPI(changes[0]); api != "GET /v1/users/mock" {
+		t.Fatalf("unexpected breaking API: %s", api)
+	}
+}
+
 func TestWriteReportBreakingModeOnlyShowsBreakingChanges(t *testing.T) {
 	output := captureStdout(t, func() {
 		writeReport(
