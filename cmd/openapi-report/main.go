@@ -53,6 +53,49 @@ type versionBump struct {
 	Summary     string
 }
 
+type reportData struct {
+	SchemaVersion   int                 `json:"schemaVersion"`
+	Mode            string              `json:"mode"`
+	Counts          reportCounts        `json:"counts"`
+	NewAPIs         []apiEndpointReport `json:"newApis"`
+	APIVersionBumps []versionBumpReport `json:"apiVersionBumps"`
+	BreakingChanges []breakingAPIReport `json:"breakingChanges"`
+}
+
+type reportCounts struct {
+	NewAPIs         int `json:"newApis"`
+	APIVersionBumps int `json:"apiVersionBumps"`
+	BreakingChanges int `json:"breakingChanges"`
+}
+
+type apiEndpointReport struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	OperationID string `json:"operationId,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Reason      string `json:"reason"`
+}
+
+type versionBumpReport struct {
+	Method      string `json:"method"`
+	FromPath    string `json:"fromPath"`
+	ToPath      string `json:"toPath"`
+	OperationID string `json:"operationId,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Reason      string `json:"reason"`
+}
+
+type breakingAPIReport struct {
+	API         string `json:"api"`
+	Method      string `json:"method,omitempty"`
+	Path        string `json:"path,omitempty"`
+	OperationID string `json:"operationId,omitempty"`
+	Section     string `json:"section,omitempty"`
+	Rule        string `json:"rule"`
+	Reason      string `json:"reason"`
+	Level       any    `json:"level,omitempty"`
+}
+
 type change struct {
 	ID          string         `json:"id"`
 	Text        string         `json:"text"`
@@ -76,6 +119,7 @@ func run() int {
 	revisionPath := flag.String("revision", "", "revision OpenAPI file")
 	breakingPath := flag.String("breaking", "", "oasdiff breaking JSON file")
 	mode := flag.String("mode", reportModeMain, "report mode: breaking or main")
+	jsonOutputPath := flag.String("json-output", "", "optional machine-readable JSON report output file")
 	flag.Parse()
 
 	if *basePath == "" || *revisionPath == "" || *breakingPath == "" {
@@ -107,6 +151,13 @@ func run() int {
 
 	added, bumped := addedAndBumpedEndpoints(base, revision)
 	writeReport(*mode, added, bumped, breaking)
+	if *jsonOutputPath != "" {
+		if err := writeJSONReport(*jsonOutputPath, newReportData(*mode, added, bumped, breaking)); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "write JSON report: %v\n", err)
+			return 1
+		}
+	}
+
 	return 0
 }
 
@@ -301,6 +352,72 @@ func writeReport(mode string, added []endpoint, bumped []versionBump, breaking [
 	writeBreakingReport(breaking)
 }
 
+func newReportData(mode string, added []endpoint, bumped []versionBump, breaking []change) reportData {
+	report := reportData{
+		SchemaVersion: 1,
+		Mode:          mode,
+		Counts: reportCounts{
+			NewAPIs:         len(added),
+			APIVersionBumps: len(bumped),
+			BreakingChanges: len(breaking),
+		},
+		NewAPIs:         make([]apiEndpointReport, 0, len(added)),
+		APIVersionBumps: make([]versionBumpReport, 0, len(bumped)),
+		BreakingChanges: make([]breakingAPIReport, 0, len(breaking)),
+	}
+
+	for _, endpoint := range added {
+		report.NewAPIs = append(report.NewAPIs, apiEndpointReport{
+			Method:      endpoint.Method,
+			Path:        endpoint.Path,
+			OperationID: endpoint.OperationID,
+			Summary:     endpoint.Summary,
+			Reason:      endpointReason(endpoint),
+		})
+	}
+
+	for _, bump := range bumped {
+		report.APIVersionBumps = append(report.APIVersionBumps, versionBumpReport{
+			Method:      bump.Method,
+			FromPath:    bump.FromPath,
+			ToPath:      bump.ToPath,
+			OperationID: bump.OperationID,
+			Summary:     bump.Summary,
+			Reason:      versionBumpReason(bump),
+		})
+	}
+
+	for _, change := range breaking {
+		method, path := changeMethodPath(change)
+		report.BreakingChanges = append(report.BreakingChanges, breakingAPIReport{
+			API:         changeAPI(change),
+			Method:      method,
+			Path:        path,
+			OperationID: change.OperationID,
+			Section:     change.Section,
+			Rule:        change.ID,
+			Reason:      changeReason(change),
+			Level:       change.Level,
+		})
+	}
+
+	return report
+}
+
+func writeJSONReport(path string, report reportData) error {
+	body, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal report: %w", err)
+	}
+
+	body = append(body, '\n')
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	return nil
+}
+
 func writeNewAPIReport(added []endpoint) {
 	fmt.Println("### New APIs")
 	fmt.Println()
@@ -310,14 +427,7 @@ func writeNewAPIReport(added []endpoint) {
 		fmt.Println("| API | Reason |")
 		fmt.Println("| --- | --- |")
 		for _, endpoint := range added {
-			reason := "Endpoint added"
-			if endpoint.Summary != "" {
-				reason += ": " + endpoint.Summary
-			} else if endpoint.OperationID != "" {
-				reason += ": `" + endpoint.OperationID + "`"
-			}
-
-			fmt.Printf("| `%s %s` | %s |\n", endpoint.Method, endpoint.Path, escapeTable(reason))
+			fmt.Printf("| `%s %s` | %s |\n", endpoint.Method, endpoint.Path, escapeTable(endpointReason(endpoint)))
 		}
 	}
 }
@@ -333,14 +443,7 @@ func writeVersionBumpReport(bumped []versionBump) {
 	fmt.Println("| From | To | Reason |")
 	fmt.Println("| --- | --- | --- |")
 	for _, bump := range bumped {
-		reason := "Versioned endpoint added"
-		if bump.Summary != "" {
-			reason += ": " + bump.Summary
-		} else if bump.OperationID != "" {
-			reason += ": `" + bump.OperationID + "`"
-		}
-
-		fmt.Printf("| `%s %s` | `%s %s` | %s |\n", bump.Method, bump.FromPath, bump.Method, bump.ToPath, escapeTable(reason))
+		fmt.Printf("| `%s %s` | `%s %s` | %s |\n", bump.Method, bump.FromPath, bump.Method, bump.ToPath, escapeTable(versionBumpReason(bump)))
 	}
 }
 
@@ -355,29 +458,47 @@ func writeBreakingReport(breaking []change) {
 	fmt.Println("| API | Reason | Rule |")
 	fmt.Println("| --- | --- | --- |")
 	for _, change := range breaking {
-		api := changeAPI(change)
-		reason := change.Text
-		if reason == "" {
-			reason = change.Comment
-		}
-		if reason == "" {
-			reason = "Breaking change detected"
-		}
-
-		fmt.Printf("| `%s` | %s | `%s` |\n", api, escapeTable(reason), change.ID)
+		fmt.Printf("| `%s` | %s | `%s` |\n", changeAPI(change), escapeTable(changeReason(change)), change.ID)
 	}
 }
 
-func changeAPI(change change) string {
-	method := strings.ToUpper(change.Operation)
-	path := change.Path
+func endpointReason(endpoint endpoint) string {
+	reason := "Endpoint added"
+	if endpoint.Summary != "" {
+		reason += ": " + endpoint.Summary
+	} else if endpoint.OperationID != "" {
+		reason += ": `" + endpoint.OperationID + "`"
+	}
 
-	if method == "" {
-		method = strings.ToUpper(stringAttribute(change.Attributes, "operation"))
+	return reason
+}
+
+func versionBumpReason(bump versionBump) string {
+	reason := "Versioned endpoint added"
+	if bump.Summary != "" {
+		reason += ": " + bump.Summary
+	} else if bump.OperationID != "" {
+		reason += ": `" + bump.OperationID + "`"
 	}
-	if path == "" {
-		path = stringAttribute(change.Attributes, "path")
+
+	return reason
+}
+
+func changeReason(change change) string {
+	reason := change.Text
+	if reason == "" {
+		reason = change.Comment
 	}
+	if reason == "" {
+		reason = "Breaking change detected"
+	}
+
+	return reason
+}
+
+func changeAPI(change change) string {
+	method, path := changeMethodPath(change)
+
 	if method != "" && path != "" {
 		return method + " " + path
 	}
@@ -392,6 +513,20 @@ func changeAPI(change change) string {
 	}
 
 	return "OpenAPI document"
+}
+
+func changeMethodPath(change change) (string, string) {
+	method := strings.ToUpper(change.Operation)
+	path := change.Path
+
+	if method == "" {
+		method = strings.ToUpper(stringAttribute(change.Attributes, "operation"))
+	}
+	if path == "" {
+		path = stringAttribute(change.Attributes, "path")
+	}
+
+	return method, path
 }
 
 func stringAttribute(attributes map[string]any, key string) string {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"strings"
@@ -116,6 +117,62 @@ func TestWriteReportBreakingModeOnlyShowsBreakingChanges(t *testing.T) {
 	}
 	if !strings.Contains(output, "### Breaking Changes") || !strings.Contains(output, "`GET /v1/users`") {
 		t.Fatalf("breaking mode did not include breaking API details: %s", output)
+	}
+}
+
+func TestWriteJSONReport(t *testing.T) {
+	path := t.TempDir() + "/openapi-report.json"
+	report := newReportData(
+		reportModeMain,
+		[]endpoint{{
+			Method:      "POST",
+			Path:        "/v1/projects",
+			OperationID: "post-v1-projects",
+			Summary:     "Create project",
+		}},
+		[]versionBump{{
+			Method:      "GET",
+			FromPath:    "/v1/users",
+			ToPath:      "/v2/users",
+			OperationID: "get-v2-users",
+			Summary:     "List users v2",
+		}},
+		[]change{{
+			ID:        "api-path-removed-without-deprecation",
+			Text:      "api path removed without deprecation",
+			Level:     float64(3),
+			Operation: "GET",
+			Path:      "/v1/users/mock",
+		}},
+	)
+
+	if err := writeJSONReport(path, report); err != nil {
+		t.Fatalf("write JSON report: %v", err)
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read JSON report: %v", err)
+	}
+
+	var got reportData
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal JSON report: %v", err)
+	}
+	if got.SchemaVersion != 1 || got.Mode != reportModeMain {
+		t.Fatalf("unexpected report metadata: %#v", got)
+	}
+	if got.Counts.NewAPIs != 1 || got.Counts.APIVersionBumps != 1 || got.Counts.BreakingChanges != 1 {
+		t.Fatalf("unexpected report counts: %#v", got.Counts)
+	}
+	if got.NewAPIs[0].Reason != "Endpoint added: Create project" {
+		t.Fatalf("unexpected new API reason: %s", got.NewAPIs[0].Reason)
+	}
+	if got.APIVersionBumps[0].FromPath != "/v1/users" || got.APIVersionBumps[0].ToPath != "/v2/users" {
+		t.Fatalf("unexpected version bump: %#v", got.APIVersionBumps[0])
+	}
+	if got.BreakingChanges[0].API != "GET /v1/users/mock" {
+		t.Fatalf("unexpected breaking API: %#v", got.BreakingChanges[0])
 	}
 }
 
