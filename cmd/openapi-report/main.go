@@ -57,7 +57,7 @@ type change struct {
 	ID          string         `json:"id"`
 	Text        string         `json:"text"`
 	Comment     string         `json:"comment"`
-	Level       string         `json:"level"`
+	Level       any            `json:"level"`
 	Operation   string         `json:"operation"`
 	OperationID string         `json:"operationId"`
 	Path        string         `json:"path"`
