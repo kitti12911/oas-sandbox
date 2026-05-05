@@ -174,14 +174,18 @@ Example patch:
 
 ## available commands
 
-```bash
-make tidy
-make fmt
-make pretty
-make format
-make test
-make cov
-make gen
-make gen-patch
-make run
-```
+| Command            | Description                                     |
+| ------------------ | ----------------------------------------------- |
+| `make air`         | Run the service with Air live reload            |
+| `make tidy`        | Run `go mod tidy`                               |
+| `make run`         | Start the HTTP server locally                   |
+| `make fmt`         | Format Go code with `go fmt`                    |
+| `make pretty`      | Format Markdown, YAML, JSON, and JSONC          |
+| `make format`      | Run Go and document/config formatting           |
+| `make test`        | Run tests with the race detector                |
+| `make cov`         | Generate and open an HTML coverage report       |
+| `make fix`         | Apply standard Go source rewrites with `go fix` |
+| `make gen`         | Generate protobuf clients and PATCH helpers     |
+| `make gen-proto`   | Generate protobuf clients from `proto-sandbox`  |
+| `make gen-patch`   | Generate OpenAPI PATCH helper code              |
+| `make gen-openapi` | Print the generated OpenAPI document to stdout  |
