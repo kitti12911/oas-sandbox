@@ -27,7 +27,7 @@ fix:
 	go fix ./...
 
 # ____________________ Generate Command ____________________
-gen: gen-proto gen-patch gen-openapi
+gen: gen-proto gen-patch
 
 gen-proto:
 	rm -rf gen/grpc
@@ -37,4 +37,4 @@ gen-patch:
 	go run ./cmd/gen-patch
 
 gen-openapi:
-	@echo "Huma generates OpenAPI at runtime: /openapi.json and /openapi.yaml"
+	go run ./cmd/gen-oas

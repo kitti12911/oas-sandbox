@@ -27,6 +27,22 @@ type HTTPServer struct {
 
 func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceClient) *HTTPServer {
 	mux := http.NewServeMux()
+	humaAPI := NewAPI(mux, serviceName, userClient)
+	registerOpenAPISpec(mux, humaAPI)
+	registerSwaggerUIAssets(mux)
+	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
+
+	handler := otelhttp.NewHandler(mux, serviceName)
+	return &HTTPServer{
+		server: &http.Server{
+			Addr:              fmt.Sprintf(":%d", port),
+			Handler:           handler,
+			ReadHeaderTimeout: 5 * time.Second,
+		},
+	}
+}
+
+func NewAPI(mux *http.ServeMux, serviceName string, userClient userv1.UserServiceClient) huma.API {
 	humaConfig := huma.DefaultConfig("OAS Sandbox", "0.1.0")
 	humaConfig.Info.Description = "OpenAPI sandbox for homelab API experiments."
 	humaConfig.Tags = []*huma.Tag{
@@ -41,18 +57,8 @@ func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceCl
 		ServiceName: serviceName,
 		UserClient:  userClient,
 	})
-	registerOpenAPISpec(mux, humaAPI)
-	registerSwaggerUIAssets(mux)
-	registerDocs(mux, humaConfig.Info.Title)
 
-	handler := otelhttp.NewHandler(mux, serviceName)
-	return &HTTPServer{
-		server: &http.Server{
-			Addr:              fmt.Sprintf(":%d", port),
-			Handler:           handler,
-			ReadHeaderTimeout: 5 * time.Second,
-		},
-	}
+	return humaAPI
 }
 
 func (s *HTTPServer) Start() error {
