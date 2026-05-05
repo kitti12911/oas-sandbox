@@ -150,7 +150,7 @@ jobs:
             - name: Compare OpenAPI
               run: |
                   set +e
-                  oasdiff breaking --format json \
+                  oasdiff breaking --format json --fail-on ERR \
                       "${RUNNER_TEMP}/openapi-base.yaml" \
                       "${RUNNER_TEMP}/openapi-revision.yaml" \
                       > "${RUNNER_TEMP}/openapi-breaking.json" \
@@ -171,6 +171,12 @@ jobs:
                           -breaking "${RUNNER_TEMP}/openapi-breaking.json" \
                           -mode "${REPORT_MODE}"
                   } >> "${GITHUB_STEP_SUMMARY}"
+
+                  if [ -s "${RUNNER_TEMP}/openapi-breaking.json" ]; then
+                      echo "OpenAPI breaking changes detected."
+                      cat "${RUNNER_TEMP}/openapi-breaking.err"
+                      exit 1
+                  fi
 
                   if [ "${breaking_status}" -ne 0 ]; then
                       cat "${RUNNER_TEMP}/openapi-breaking.err"
