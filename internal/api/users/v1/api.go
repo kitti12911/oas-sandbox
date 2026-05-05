@@ -86,4 +86,13 @@ func Register(h huma.API, deps api.Deps) {
 
 		return humautil.AffectedRows(resp.GetAffectedRows()), nil
 	}, humautil.WithTag(api.TagUsers))
+
+	huma.Delete(h, "/users/{id}", func(ctx context.Context, input *DeleteUserInput) (*humautil.AffectedRowsOutput, error) {
+		resp, err := client.DeleteUser(ctx, &userv1.DeleteUserRequest{Id: input.ID})
+		if err != nil {
+			return nil, humautil.GRPCError(err)
+		}
+
+		return humautil.AffectedRows(resp.GetAffectedRows()), nil
+	}, humautil.WithTag(api.TagUsers))
 }

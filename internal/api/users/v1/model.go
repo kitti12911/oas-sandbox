@@ -68,6 +68,10 @@ type PatchUserInput struct {
 	Body PatchUserRequest
 }
 
+type DeleteUserInput struct {
+	ID string `path:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"User ID"`
+}
+
 type CreateUserRequest struct {
 	Email       string         `json:"email"                 example:"kitti@example.com" doc:"Email address"`
 	Username    string         `json:"username"              example:"kitti"             doc:"Username"`
