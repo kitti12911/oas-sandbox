@@ -109,7 +109,10 @@ jobs:
     openapi:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        env:
+            BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+            REPORT_MODE: ${{ github.event_name == 'pull_request' && 'breaking' || 'main' }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -137,12 +140,12 @@ jobs:
 
             - name: Generate base OpenAPI
               run: |
-                  git checkout "${{ github.event.pull_request.base.sha }}"
+                  git checkout "${BASE_SHA}"
                   make gen
                   make gen-openapi > "${RUNNER_TEMP}/openapi-base.yaml"
 
             - name: Restore revision checkout
-              run: git checkout "${{ github.sha }}"
+              run: git checkout "${GITHUB_SHA}"
 
             - name: Compare OpenAPI
               run: |
@@ -158,12 +161,15 @@ jobs:
                   {
                       echo "## OpenAPI changes"
                       echo
-                      echo "Compared base \`${{ github.event.pull_request.base.sha }}\` to revision \`${{ github.sha }}\`."
+                      echo "Compared base \`${BASE_SHA}\` to revision \`${GITHUB_SHA}\`."
+                      echo
+                      echo "Report mode: \`${REPORT_MODE}\`."
                       echo
                       go run ./cmd/openapi-report \
                           -base "${RUNNER_TEMP}/openapi-base.yaml" \
                           -revision "${RUNNER_TEMP}/openapi-revision.yaml" \
-                          -breaking "${RUNNER_TEMP}/openapi-breaking.json"
+                          -breaking "${RUNNER_TEMP}/openapi-breaking.json" \
+                          -mode "${REPORT_MODE}"
                   } >> "${GITHUB_STEP_SUMMARY}"
 
                   if [ "${breaking_status}" -ne 0 ]; then
@@ -224,6 +230,7 @@ jobs:
         runs-on: ${{ matrix.runner }}
         needs:
             - lint
+            - openapi
             - test
             - security
         if: github.ref == 'refs/heads/main'

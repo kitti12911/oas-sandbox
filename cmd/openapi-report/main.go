@@ -5,10 +5,17 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	reportModeBreaking = "breaking"
+	reportModeMain     = "main"
 )
 
 var httpMethods = map[string]struct{}{
@@ -38,6 +45,14 @@ type endpoint struct {
 	Summary     string
 }
 
+type versionBump struct {
+	Method      string
+	FromPath    string
+	ToPath      string
+	OperationID string
+	Summary     string
+}
+
 type change struct {
 	ID          string         `json:"id"`
 	Text        string         `json:"text"`
@@ -50,6 +65,8 @@ type change struct {
 	Attributes  map[string]any `json:"attributes"`
 }
 
+var versionedPathRe = regexp.MustCompile(`^/v([0-9]+)(/.*)?$`)
+
 func main() {
 	os.Exit(run())
 }
@@ -58,10 +75,15 @@ func run() int {
 	basePath := flag.String("base", "", "base OpenAPI file")
 	revisionPath := flag.String("revision", "", "revision OpenAPI file")
 	breakingPath := flag.String("breaking", "", "oasdiff breaking JSON file")
+	mode := flag.String("mode", reportModeMain, "report mode: breaking or main")
 	flag.Parse()
 
 	if *basePath == "" || *revisionPath == "" || *breakingPath == "" {
 		_, _ = fmt.Fprintln(os.Stderr, "base, revision, and breaking are required")
+		return 2
+	}
+	if *mode != reportModeBreaking && *mode != reportModeMain {
+		_, _ = fmt.Fprintf(os.Stderr, "unknown report mode %q\n", *mode)
 		return 2
 	}
 
@@ -83,7 +105,8 @@ func run() int {
 		return 1
 	}
 
-	writeReport(newEndpoints(base, revision), breaking)
+	added, bumped := addedAndBumpedEndpoints(base, revision)
+	writeReport(*mode, added, bumped, breaking)
 	return 0
 }
 
@@ -129,9 +152,11 @@ func readBreakingChanges(path string) ([]change, error) {
 	return changes, nil
 }
 
-func newEndpoints(base, revision openAPI) []endpoint {
+func addedAndBumpedEndpoints(base, revision openAPI) ([]endpoint, []versionBump) {
 	baseEndpoints := endpointSet(base)
+	baseVersioned := versionedEndpointSet(base)
 	var added []endpoint
+	var bumped []versionBump
 
 	for path, pathItem := range revision.Paths {
 		for method, op := range pathItem {
@@ -145,12 +170,18 @@ func newEndpoints(base, revision openAPI) []endpoint {
 				continue
 			}
 
-			added = append(added, endpoint{
+			addedEndpoint := endpoint{
 				Method:      strings.ToUpper(method),
 				Path:        path,
 				OperationID: op.OperationID,
 				Summary:     op.Summary,
-			})
+			}
+			if bump, ok := versionBumpForEndpoint(addedEndpoint, baseVersioned); ok {
+				bumped = append(bumped, bump)
+				continue
+			}
+
+			added = append(added, addedEndpoint)
 		}
 	}
 
@@ -161,8 +192,19 @@ func newEndpoints(base, revision openAPI) []endpoint {
 
 		return added[i].Path < added[j].Path
 	})
+	sort.Slice(bumped, func(i, j int) bool {
+		if bumped[i].FromPath == bumped[j].FromPath {
+			if bumped[i].ToPath == bumped[j].ToPath {
+				return bumped[i].Method < bumped[j].Method
+			}
 
-	return added
+			return bumped[i].ToPath < bumped[j].ToPath
+		}
+
+		return bumped[i].FromPath < bumped[j].FromPath
+	})
+
+	return added, bumped
 }
 
 func endpointSet(spec openAPI) map[string]struct{} {
@@ -181,7 +223,85 @@ func endpointSet(spec openAPI) map[string]struct{} {
 	return endpoints
 }
 
-func writeReport(added []endpoint, breaking []change) {
+type versionedEndpoint struct {
+	Version int
+	Path    string
+}
+
+func versionedEndpointSet(spec openAPI) map[string]versionedEndpoint {
+	endpoints := make(map[string]versionedEndpoint)
+	for path, pathItem := range spec.Paths {
+		version, normalizedPath, ok := parseVersionedPath(path)
+		if !ok {
+			continue
+		}
+
+		for method := range pathItem {
+			method = strings.ToLower(method)
+			if _, ok := httpMethods[method]; !ok {
+				continue
+			}
+
+			key := strings.ToUpper(method) + " " + normalizedPath
+			current, ok := endpoints[key]
+			if !ok || version > current.Version {
+				endpoints[key] = versionedEndpoint{
+					Version: version,
+					Path:    path,
+				}
+			}
+		}
+	}
+
+	return endpoints
+}
+
+func versionBumpForEndpoint(endpoint endpoint, base map[string]versionedEndpoint) (versionBump, bool) {
+	version, normalizedPath, ok := parseVersionedPath(endpoint.Path)
+	if !ok {
+		return versionBump{}, false
+	}
+
+	baseEndpoint, ok := base[endpoint.Method+" "+normalizedPath]
+	if !ok || version <= baseEndpoint.Version {
+		return versionBump{}, false
+	}
+
+	return versionBump{
+		Method:      endpoint.Method,
+		FromPath:    baseEndpoint.Path,
+		ToPath:      endpoint.Path,
+		OperationID: endpoint.OperationID,
+		Summary:     endpoint.Summary,
+	}, true
+}
+
+func parseVersionedPath(path string) (int, string, bool) {
+	matches := versionedPathRe.FindStringSubmatch(path)
+	if matches == nil {
+		return 0, "", false
+	}
+
+	version, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, "", false
+	}
+
+	return version, "/v{}" + matches[2], true
+}
+
+func writeReport(mode string, added []endpoint, bumped []versionBump, breaking []change) {
+	if mode == reportModeMain {
+		writeNewAPIReport(added)
+		fmt.Println()
+		writeVersionBumpReport(bumped)
+		fmt.Println()
+	}
+
+	writeBreakingReport(breaking)
+}
+
+func writeNewAPIReport(added []endpoint) {
 	fmt.Println("### New APIs")
 	fmt.Println()
 	if len(added) == 0 {
@@ -200,8 +320,31 @@ func writeReport(added []endpoint, breaking []change) {
 			fmt.Printf("| `%s %s` | %s |\n", endpoint.Method, endpoint.Path, escapeTable(reason))
 		}
 	}
+}
 
+func writeVersionBumpReport(bumped []versionBump) {
+	fmt.Println("### API Version Bumps")
 	fmt.Println()
+	if len(bumped) == 0 {
+		fmt.Println("No API version bumps.")
+		return
+	}
+
+	fmt.Println("| From | To | Reason |")
+	fmt.Println("| --- | --- | --- |")
+	for _, bump := range bumped {
+		reason := "Versioned endpoint added"
+		if bump.Summary != "" {
+			reason += ": " + bump.Summary
+		} else if bump.OperationID != "" {
+			reason += ": `" + bump.OperationID + "`"
+		}
+
+		fmt.Printf("| `%s %s` | `%s %s` | %s |\n", bump.Method, bump.FromPath, bump.Method, bump.ToPath, escapeTable(reason))
+	}
+}
+
+func writeBreakingReport(breaking []change) {
 	fmt.Println("### Breaking Changes")
 	fmt.Println()
 	if len(breaking) == 0 {
