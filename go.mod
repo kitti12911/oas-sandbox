@@ -5,12 +5,13 @@ go 1.26.2
 require (
 	github.com/danielgtaylor/huma/v2 v2.37.3
 	github.com/kitti12911/lib-monitor v1.5.0
-	github.com/kitti12911/lib-util/v3 v3.2.0
+	github.com/kitti12911/lib-util/v3 v3.4.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -56,5 +57,4 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -37,4 +37,4 @@ gen-patch:
 	go run ./cmd/gen-patch
 
 gen-openapi:
-	go run ./cmd/gen-oas
+	@go run ./cmd/gen-oas

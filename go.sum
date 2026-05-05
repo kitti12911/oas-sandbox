@@ -45,8 +45,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 h1:HWRh5R2+9EifMyIHV7ZV+MIZqgz
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0/go.mod h1:JfhWUomR1baixubs02l85lZYYOm7LV6om4ceouMv45c=
 github.com/kitti12911/lib-monitor v1.5.0 h1:NdaMZ/CLAh5IAnEHXNaeL3PgkW8mKRnhBXj5gSWYKTo=
 github.com/kitti12911/lib-monitor v1.5.0/go.mod h1:4tAqwTNoy5bp5sfs8xilhI4kBnzVN8sgbinfT4LH3Fg=
-github.com/kitti12911/lib-util/v3 v3.2.0 h1:SeYJwDns/RThsNv/wDu9Urf0aJ8M9lMVE4R0osvW4XQ=
-github.com/kitti12911/lib-util/v3 v3.2.0/go.mod h1:a/EXXLqeRnj47v/UGiSL/LYYmSG+BhD7emOiP+7ajhM=
+github.com/kitti12911/lib-util/v3 v3.4.0 h1:UYWLne1rnnCv28V/Sh66lLfx1ug6tf67N2HuHn7hNww=
+github.com/kitti12911/lib-util/v3 v3.4.0/go.mod h1:a/EXXLqeRnj47v/UGiSL/LYYmSG+BhD7emOiP+7ajhM=
 github.com/klauspost/compress v1.18.4 h1:RPhnKRAQ4Fh8zU2FY/6ZFDwTVTxgJ/EMydqSTzE9a2c=
 github.com/klauspost/compress v1.18.4/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
