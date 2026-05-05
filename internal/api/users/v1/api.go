@@ -48,15 +48,6 @@ func Register(h huma.API, deps api.Deps) {
 		return createUserFromProto(resp), nil
 	}, humautil.WithTag(api.TagUsers), humautil.StatusCreated)
 
-	huma.Get(h, "/users/mock", func(ctx context.Context, input *struct{}) (*MockUserOutput, error) {
-		return &MockUserOutput{
-			Body: MockUser{
-				ID:       "mock-user",
-				Username: "mock",
-			},
-		}, nil
-	}, humautil.WithTag(api.TagUsers))
-
 	huma.Get(h, "/users/mock/status", func(ctx context.Context, input *struct{}) (*MockUserStatusOutput, error) {
 		return &MockUserStatusOutput{
 			Body: MockUserStatus{
