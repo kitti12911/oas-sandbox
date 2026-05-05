@@ -172,7 +172,8 @@ jobs:
                           -mode "${REPORT_MODE}"
                   } >> "${GITHUB_STEP_SUMMARY}"
 
-                  if [ -s "${RUNNER_TEMP}/openapi-breaking.json" ]; then
+                  breaking_json="$(tr -d '[:space:]' < "${RUNNER_TEMP}/openapi-breaking.json")"
+                  if [ "${breaking_json}" != "" ] && [ "${breaking_json}" != "[]" ] && [ "${breaking_json}" != "{\"changes\":[]}" ]; then
                       echo "OpenAPI breaking changes detected."
                       cat "${RUNNER_TEMP}/openapi-breaking.err"
                       exit 1
