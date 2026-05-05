@@ -129,6 +129,15 @@ type UserOutput struct {
 	Body User
 }
 
+type MockUserOutput struct {
+	Body MockUser
+}
+
+type MockUser struct {
+	ID       string `json:"id"       example:"mock-user" doc:"Mock user ID"`
+	Username string `json:"username" example:"mock"      doc:"Mock username"`
+}
+
 type UserListOutput struct {
 	Body UserList
 }
