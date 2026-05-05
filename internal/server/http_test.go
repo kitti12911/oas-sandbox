@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,9 +18,16 @@ import (
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 )
 
+func newRequest(method, target string, body io.Reader) *http.Request {
+	if body == nil {
+		body = http.NoBody
+	}
+	return httptest.NewRequestWithContext(context.Background(), method, target, body)
+}
+
 func TestHTTPServerHealth(t *testing.T) {
 	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := newRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 
 	srv.server.Handler.ServeHTTP(rec, req)
@@ -30,7 +38,7 @@ func TestHTTPServerHealth(t *testing.T) {
 
 func TestHTTPServerOpenAPI(t *testing.T) {
 	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	req := newRequest(http.MethodGet, "/openapi.json", nil)
 	rec := httptest.NewRecorder()
 
 	srv.server.Handler.ServeHTTP(rec, req)
@@ -43,7 +51,7 @@ func TestHTTPServerOpenAPI(t *testing.T) {
 
 func TestDocsServesSwaggerUIOfflineAndAllowsDownloads(t *testing.T) {
 	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
-	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	req := newRequest(http.MethodGet, "/docs", nil)
 	rec := httptest.NewRecorder()
 
 	srv.server.Handler.ServeHTTP(rec, req)
@@ -77,7 +85,7 @@ func TestSwaggerUIAssetsServed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := newRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
 
 			srv.server.Handler.ServeHTTP(rec, req)
@@ -113,7 +121,7 @@ func TestOpenAPIDownload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := newRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
 
 			srv.server.Handler.ServeHTTP(rec, req)
@@ -129,7 +137,7 @@ func TestOpenAPIDownload(t *testing.T) {
 func TestGetUserEndpoint(t *testing.T) {
 	client := fakeUserClient{}
 	srv := NewHTTPServer(0, "oas-sandbox", client)
-	req := httptest.NewRequest(http.MethodGet, "/v1/users/0198f8f0-0000-7000-8000-000000000001", nil)
+	req := newRequest(http.MethodGet, "/v1/users/0198f8f0-0000-7000-8000-000000000001", nil)
 	rec := httptest.NewRecorder()
 
 	srv.server.Handler.ServeHTTP(rec, req)
@@ -149,7 +157,7 @@ func TestListUsersEndpoint(t *testing.T) {
 	var got *userv1.ListUsersRequest
 	client := fakeUserClient{listReq: &got}
 	srv := NewHTTPServer(0, "oas-sandbox", client)
-	req := httptest.NewRequest(
+	req := newRequest(
 		http.MethodGet,
 		"/v1/users?page=2&pageSize=5"+
 			"&filterCol=username&filterOp=like_ci&filterVal=kit"+
@@ -224,7 +232,7 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 			}
 		]
 	}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/users/search", body)
+	req := newRequest(http.MethodPost, "/v1/users/search", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -287,7 +295,7 @@ func TestCreateUserEndpoint(t *testing.T) {
 			}
 		}
 	}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/users", body)
+	req := newRequest(http.MethodPost, "/v1/users", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -332,7 +340,7 @@ func TestUpdateUserEndpoint(t *testing.T) {
 			}
 		}
 	}`)
-	req := httptest.NewRequest(http.MethodPut, "/v1/users/0198f8f0-0000-7000-8000-000000000001", body)
+	req := newRequest(http.MethodPut, "/v1/users/0198f8f0-0000-7000-8000-000000000001", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -369,7 +377,7 @@ func TestPatchUserEndpoint(t *testing.T) {
 			}
 		}
 	}`)
-	req := httptest.NewRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", body)
+	req := newRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -390,7 +398,7 @@ func TestPatchUserEndpoint(t *testing.T) {
 func TestPatchUserEndpointRejectsEmptyBody(t *testing.T) {
 	client := fakeUserClient{}
 	srv := NewHTTPServer(0, "oas-sandbox", client)
-	req := httptest.NewRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", strings.NewReader(`{}`))
+	req := newRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 

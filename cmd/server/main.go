@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,13 +26,17 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	ctx := context.Background()
 
 	// Load config
 	cfg, err := libconfig.Load[config.Config]("config.yml")
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to load config", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if cfg.Service.ShutdownTimeout == 0 {
@@ -45,11 +50,11 @@ func main() {
 	profiler, err := profiling.NewFromConfig(cfg.Service.Name, cfg.Profiling)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to init profiling", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() {
-		if err := profiling.Shutdown(profiler); err != nil {
-			slog.ErrorContext(ctx, "failed to stop profiling", "error", err)
+		if shutdownErr := profiling.Shutdown(profiler); shutdownErr != nil {
+			slog.ErrorContext(ctx, "failed to stop profiling", "error", shutdownErr)
 		}
 	}()
 
@@ -57,9 +62,13 @@ func main() {
 	tp, err := tracing.NewFromConfig(ctx, cfg.Service.Name, cfg.Tracing)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to init tracing", "error", err)
-		os.Exit(1)
+		return 1
 	}
-	defer tracing.Shutdown(ctx, tp)
+	defer func() {
+		if shutdownErr := tracing.Shutdown(ctx, tp); shutdownErr != nil {
+			slog.ErrorContext(ctx, "failed to stop tracing", "error", shutdownErr)
+		}
+	}()
 
 	// Init gRPC clients
 	userAddr := net.JoinHostPort(cfg.UserService.Host, strconv.Itoa(cfg.UserService.Port))
@@ -70,20 +79,22 @@ func main() {
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to connect to user service", "addr", userAddr, "error", err)
-		os.Exit(1)
+		return 1
 	}
-	defer userConn.Close()
+	defer func() {
+		if closeErr := userConn.Close(); closeErr != nil {
+			slog.ErrorContext(ctx, "failed to close user service connection", "error", closeErr)
+		}
+	}()
 
 	slog.InfoContext(ctx, "connected to user service", "addr", userAddr)
 
 	// Start HTTP server
 	srv := server.NewHTTPServer(cfg.Service.Port, cfg.Service.Name, userv1.NewUserServiceClient(userConn))
 
+	serverErr := make(chan error, 1)
 	go func() {
-		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
-			slog.ErrorContext(ctx, "HTTP server error", "error", err)
-			os.Exit(1)
-		}
+		serverErr <- srv.Start()
 	}()
 
 	slog.InfoContext(ctx, "HTTP server started", "port", cfg.Service.Port)
@@ -91,7 +102,14 @@ func main() {
 	// Wait for shutdown signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	select {
+	case <-quit:
+	case err := <-serverErr:
+		if !errors.Is(err, http.ErrServerClosed) {
+			slog.ErrorContext(ctx, "HTTP server error", "error", err)
+			return 1
+		}
+	}
 
 	slog.InfoContext(ctx, "shutting down HTTP server")
 
@@ -101,4 +119,6 @@ func main() {
 	srv.Stop(shutdownCtx)
 
 	slog.InfoContext(ctx, "server stopped")
+
+	return 0
 }

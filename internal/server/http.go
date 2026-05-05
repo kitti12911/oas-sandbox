@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
@@ -47,8 +48,9 @@ func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceCl
 	handler := otelhttp.NewHandler(mux, serviceName)
 	return &HTTPServer{
 		server: &http.Server{
-			Addr:    fmt.Sprintf(":%d", port),
-			Handler: handler,
+			Addr:              fmt.Sprintf(":%d", port),
+			Handler:           handler,
+			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}
 }

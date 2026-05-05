@@ -1,6 +1,7 @@
 package usersv1
 
 import (
+	"math"
 	"strings"
 
 	"github.com/kitti12911/lib-util/v3/protoutil"
@@ -9,6 +10,16 @@ import (
 	commonv1 "oas-sandbox/gen/grpc/common/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 )
+
+func int32FromInt(value int) int32 {
+	if value > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if value < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(value)
+}
 
 func userListFromProto(resp *userv1.ListUsersResponse) *UserListOutput {
 	if resp == nil {
@@ -173,8 +184,8 @@ func statusToProto(status string) userv1.UserStatus {
 
 func paginationFromInput(input *ListUsersInput) *commonv1.PaginationRequest {
 	return &commonv1.PaginationRequest{
-		Page:     int32(input.Page),
-		PageSize: int32(input.PageSize),
+		Page:     int32FromInt(input.Page),
+		PageSize: int32FromInt(input.PageSize),
 	}
 }
 
@@ -217,8 +228,8 @@ func paginationFromAdvancedInput(input *AdvancedListUsersInput) *commonv1.Pagina
 	}
 
 	return &commonv1.PaginationRequest{
-		Page:     int32(input.Body.Pagination.Page),
-		PageSize: int32(input.Body.Pagination.PageSize),
+		Page:     int32FromInt(input.Body.Pagination.Page),
+		PageSize: int32FromInt(input.Body.Pagination.PageSize),
 	}
 }
 
