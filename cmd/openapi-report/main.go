@@ -515,9 +515,9 @@ func changeAPI(change change) string {
 	return "OpenAPI document"
 }
 
-func changeMethodPath(change change) (string, string) {
-	method := strings.ToUpper(change.Operation)
-	path := change.Path
+func changeMethodPath(change change) (method, path string) {
+	method = strings.ToUpper(change.Operation)
+	path = change.Path
 
 	if method == "" {
 		method = strings.ToUpper(stringAttribute(change.Attributes, "operation"))
