@@ -77,6 +77,9 @@ func registerAPI(h huma.API, deps api.Deps) {
 
 	v1 := huma.NewGroup(h, "/v1")
 	usersv1.Register(v1, deps)
+
+	v2 := huma.NewGroup(h, "/v2")
+	usersv1.RegisterMockV2(v2)
 }
 
 func registerOpenAPISpec(mux *http.ServeMux, humaAPI huma.API) {
