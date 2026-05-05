@@ -105,7 +105,6 @@ type CreateProfile struct {
 	FirstName   *string        `json:"firstName,omitempty"   example:"Kitti"  doc:"First name"`
 	LastName    *string        `json:"lastName,omitempty"    example:"User"   doc:"Last name"`
 	PhoneNumber *string        `json:"phoneNumber,omitempty" example:"+66000" doc:"Phone number"`
-	TestField   *string        `json:"testField,omitempty"                    doc:"Test field for patch converter"`
 	Address     *CreateAddress `json:"address,omitempty"                      doc:"Address"`
 }
 
