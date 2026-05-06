@@ -114,7 +114,6 @@ jobs:
     openapi:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         env:
             BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
             REPORT_MODE: ${{ github.event_name == 'pull_request' && 'breaking' || 'main' }}
