@@ -1,4 +1,4 @@
-FROM golang:1.26.2-alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS builder
+FROM zot.kittiaccess.work/kitti12911/image-toolchain@sha256:ac879786afde1d764a964a3eca163cd7801134eebf656f627d8048c70933693f AS builder
 
 WORKDIR /src
 
@@ -6,14 +6,6 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
 	go mod download
-
-RUN apk add --no-cache git make
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-	--mount=type=cache,target=/root/.cache/go-build \
-	go install github.com/bufbuild/buf/cmd/buf@v1.69.0 \
-	&& go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 \
-	&& go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
 
 COPY Makefile buf.gen.yaml ./
 COPY cmd ./cmd
