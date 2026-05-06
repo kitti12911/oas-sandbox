@@ -1,0 +1,236 @@
+name: Release
+
+on:
+    workflow_call:
+        inputs:
+            release_branch:
+                required: true
+                type: string
+            release_sha:
+                required: true
+                type: string
+
+concurrency:
+    group: ${{ github.workflow }}-publish
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    REGISTRY: zot.kittiaccess.work
+    RELEASE_BRANCH: ${{ inputs.release_branch }}
+    RELEASE_SHA: ${{ inputs.release_sha }}
+
+jobs:
+    version:
+        name: Publish Semantic Release
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: write
+        outputs:
+            published: ${{ steps.semantic.outputs.published }}
+            version: ${{ steps.semantic.outputs.version }}
+            git_tag: ${{ steps.semantic.outputs.git_tag }}
+            env_tag: ${{ steps.semantic.outputs.env_tag }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_BRANCH }}
+                  fetch-depth: 0
+
+            - name: Pin release commit
+              run: git reset --hard "${RELEASE_SHA}"
+
+            - name: Install semantic-release
+              run: |
+                  npm install --no-save --no-package-lock \
+                      semantic-release@24.2.7 \
+                      @semantic-release/commit-analyzer@13.0.1 \
+                      @semantic-release/release-notes-generator@14.0.3 \
+                      @semantic-release/github@11.0.6 \
+                      conventional-changelog-conventionalcommits@8.0.0
+
+            - name: Publish semantic release
+              id: semantic
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  echo "published=false" >> "${GITHUB_OUTPUT}"
+                  echo "env_tag=${RELEASE_BRANCH}" >> "${GITHUB_OUTPUT}"
+
+                  npx semantic-release --no-ci > "${RUNNER_TEMP}/semantic-release.log" 2>&1
+                  cat "${RUNNER_TEMP}/semantic-release.log"
+
+                  version="$(sed -nE \
+                      -e 's/.*Published release ([0-9A-Za-z.+-]+).*/\1/p' \
+                      -e 's/.*The next release version is ([0-9A-Za-z.+-]+).*/\1/p' \
+                      "${RUNNER_TEMP}/semantic-release.log" | tail -n 1)"
+                  if [ -z "${version}" ]; then
+                      version="$(git tag --points-at HEAD --sort=-version:refname | sed -nE 's/^v([0-9A-Za-z.+-]+)$/\1/p' | head -n 1)"
+                  fi
+                  if [ -z "${version}" ]; then
+                      echo "No semantic release will be published."
+                      exit 0
+                  fi
+
+                  echo "published=true" >> "${GITHUB_OUTPUT}"
+                  echo "version=${version}" >> "${GITHUB_OUTPUT}"
+                  echo "git_tag=v${version}" >> "${GITHUB_OUTPUT}"
+
+    build:
+        name: Build and Scan Image (${{ matrix.arch }})
+        runs-on: ${{ matrix.runner }}
+        needs:
+            - version
+        if: needs.version.outputs.published == 'true'
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: amd64
+                      platform: linux/amd64
+                      runner: ubuntu-latest
+                    - arch: arm64
+                      platform: linux/arm64
+                      runner: ubuntu-24.04-arm
+        env:
+            IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}
+            ARCH_IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}:${{ needs.version.outputs.git_tag }}-${{ matrix.arch }}
+            SHA_ARCH_IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}:${{ inputs.release_sha }}-${{ matrix.arch }}
+        steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  ref: ${{ env.RELEASE_SHA }}
+
+            # docker/setup-buildx-action v3.11.1
+            - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+            # docker/build-push-action v6.18.0
+            - name: Build Docker image for scan
+              uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+              with:
+                  context: .
+                  load: true
+                  platforms: ${{ matrix.platform }}
+                  tags: |
+                      ${{ env.ARCH_IMAGE_REF }}
+                      ${{ env.SHA_ARCH_IMAGE_REF }}
+                  cache-from: type=gha,scope=${{ matrix.arch }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+                  provenance: false
+                  sbom: false
+
+            # aquasecurity/trivy-action v0.36.0
+            - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+              with:
+                  image-ref: ${{ env.ARCH_IMAGE_REF }}
+                  format: table
+                  exit-code: 1
+                  severity: CRITICAL,HIGH
+                  ignore-unfixed: true
+
+            # docker/login-action v4.1.0
+            - name: Login to Zot registry
+              uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ secrets.ZOT_USERNAME }}
+                  password: ${{ secrets.ZOT_TOKEN }}
+
+            # docker/build-push-action v6.18.0
+            - name: Build and push Docker image
+              uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+              with:
+                  context: .
+                  platforms: ${{ matrix.platform }}
+                  tags: |
+                      ${{ env.ARCH_IMAGE_REF }}
+                      ${{ env.SHA_ARCH_IMAGE_REF }}
+                  cache-from: type=gha,scope=${{ matrix.arch }}
+                  outputs: type=image,push=true,oci-mediatypes=true
+                  provenance: true
+                  sbom: true
+
+    publish:
+        name: Publish Multi-Arch Image
+        runs-on: ubuntu-latest
+        needs:
+            - version
+            - build
+        if: needs.version.outputs.published == 'true'
+        env:
+            IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}
+            RELEASE_TAG: ${{ needs.version.outputs.git_tag }}
+            ENV_TAG: ${{ needs.version.outputs.env_tag }}
+        steps:
+            # docker/setup-buildx-action v3.11.1
+            - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+            # docker/login-action v4.1.0
+            - name: Login to Zot registry
+              uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ secrets.ZOT_USERNAME }}
+                  password: ${{ secrets.ZOT_TOKEN }}
+
+            - name: Create multi-arch manifest
+              run: |
+                  tags=(
+                      --tag "${IMAGE_REF}:${RELEASE_TAG}"
+                      --tag "${IMAGE_REF}:${ENV_TAG}"
+                      --tag "${IMAGE_REF}:${RELEASE_SHA}"
+                  )
+                  if [ "${RELEASE_BRANCH}" = "main" ]; then
+                      tags+=(--tag "${IMAGE_REF}:latest")
+                  fi
+
+                  docker buildx imagetools create \
+                      "${tags[@]}" \
+                      "${IMAGE_REF}:${RELEASE_TAG}-amd64" \
+                      "${IMAGE_REF}:${RELEASE_TAG}-arm64"
+
+            - name: Resolve image digest
+              id: image
+              run: |
+                  digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}" --format '{{.Manifest.Digest}}')"
+                  amd64_digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}-amd64" --format '{{.Manifest.Digest}}')"
+                  arm64_digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}-arm64" --format '{{.Manifest.Digest}}')"
+                  echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+                  echo "amd64_digest=${amd64_digest}" >> "${GITHUB_OUTPUT}"
+                  echo "arm64_digest=${arm64_digest}" >> "${GITHUB_OUTPUT}"
+
+            # sigstore/cosign-installer v4.1.1
+            - uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003
+
+            - name: Sign Docker images
+              env:
+                  COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+              run: |
+                  key_file="$(mktemp)"
+                  trap 'rm -f "${key_file}"' EXIT
+                  printf '%s' "${COSIGN_PRIVATE_KEY}" > "${key_file}"
+                  chmod 600 "${key_file}"
+
+                  cosign sign --yes \
+                      --new-bundle-format=false \
+                      --use-signing-config=false \
+                      --key "${key_file}" \
+                      "${IMAGE_REF}@${{ steps.image.outputs.digest }}"
+
+                  cosign sign --yes \
+                      --new-bundle-format=false \
+                      --use-signing-config=false \
+                      --key "${key_file}" \
+                      "${IMAGE_REF}@${{ steps.image.outputs.amd64_digest }}"
+
+                  cosign sign --yes \
+                      --new-bundle-format=false \
+                      --use-signing-config=false \
+                      --key "${key_file}" \
+                      "${IMAGE_REF}@${{ steps.image.outputs.arm64_digest }}"
