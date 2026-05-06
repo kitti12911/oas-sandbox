@@ -175,6 +175,9 @@ jobs:
               with:
                   fetch-depth: 0
 
+            - name: Trust workspace checkout
+              run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
             - name: Install OpenAPI comparison tools
               run: go install github.com/oasdiff/oasdiff@v1.14.0
 
