@@ -31,7 +31,7 @@ gen: gen-proto gen-patch
 
 gen-proto:
 	rm -rf gen/grpc
-	buf generate https://github.com/kitti12911/proto-sandbox.git --path common/v1 --path user/v1
+	buf generate
 
 gen-patch:
 	go run ./cmd/gen-patch
