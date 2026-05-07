@@ -5,10 +5,6 @@
             "prerelease": "beta"
         },
         {
-            "name": "sit",
-            "prerelease": "qa"
-        },
-        {
             "name": "uat",
             "prerelease": "rc"
         },
