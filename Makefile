@@ -8,6 +8,17 @@ tidy:
 run:
 	go run ./cmd/server/main.go
 
+lint: vet golangci-lint markdownlint
+
+vet:
+	go vet ./...
+
+golangci-lint:
+	golangci-lint run --timeout=5m
+
+markdownlint:
+	markdownlint-cli2
+
 fmt:
 	go fmt ./...
 

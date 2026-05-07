@@ -1,4 +1,4 @@
-FROM zot.kittiaccess.work/kitti12911/image-toolchain@sha256:ac879786afde1d764a964a3eca163cd7801134eebf656f627d8048c70933693f AS builder
+FROM zot.kittiaccess.work/kitti12911/image-toolchain@sha256:929af3066d2d112097ea45f424deefe84b2e5d122185d15de74cc6e8c6a6a4d2 AS builder
 
 WORKDIR /src
 
