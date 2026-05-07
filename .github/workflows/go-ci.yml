@@ -4,7 +4,6 @@ on:
     push:
         branches:
             - develop
-            - sit
             - uat
             - main
         paths:
@@ -51,7 +50,7 @@ jobs:
         name: Generate
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:ac879786afde1d764a964a3eca163cd7801134eebf656f627d8048c70933693f
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:929af3066d2d112097ea45f424deefe84b2e5d122185d15de74cc6e8c6a6a4d2
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -164,7 +163,7 @@ jobs:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:ac879786afde1d764a964a3eca163cd7801134eebf656f627d8048c70933693f
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:929af3066d2d112097ea45f424deefe84b2e5d122185d15de74cc6e8c6a6a4d2
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -252,7 +251,7 @@ jobs:
         needs:
             - generate
         container:
-            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:c5e93aedae93ba4819de5aa0b1636619f9ac7777652dcc5781c043e8ed7c74b7
+            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:b657fb66a9ab10d21e5180fb55bec65249706c703b6117001a2da04cc4f6844d
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -324,3 +323,91 @@ jobs:
             release_branch: ${{ github.ref_name }}
             release_sha: ${{ github.sha }}
         secrets: inherit
+
+    promotion-pr:
+        name: Create Promotion PR
+        runs-on: ubuntu-latest
+        needs:
+            - release
+        if: |
+            github.event_name == 'push' &&
+            (github.ref_name == 'develop' || github.ref_name == 'uat')
+        permissions:
+            contents: read
+            issues: write
+            pull-requests: write
+        steps:
+            - name: Create or update promotion PR
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPOSITORY: ${{ github.repository }}
+                  SOURCE_BRANCH: ${{ github.ref_name }}
+                  SOURCE_SHA: ${{ github.sha }}
+                  WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  case "${SOURCE_BRANCH}" in
+                      develop)
+                          TARGET_BRANCH="uat"
+                          ;;
+                      uat)
+                          TARGET_BRANCH="main"
+                          ;;
+                      *)
+                          echo "No promotion target configured for ${SOURCE_BRANCH}."
+                          exit 0
+                          ;;
+                  esac
+
+                  compare_status="$(gh api \
+                      "repos/${REPOSITORY}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}" \
+                      --jq '.status')"
+                  if [ "${compare_status}" = "identical" ] || [ "${compare_status}" = "behind" ]; then
+                      echo "${SOURCE_BRANCH} has no new commits to promote to ${TARGET_BRANCH}."
+                      exit 0
+                  fi
+
+                  title="Promote ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                  body="$(mktemp)"
+                  cat > "${body}" <<EOF
+                  Automated promotion PR from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`.
+
+                  Source commit: \`${SOURCE_SHA}\`
+                  Successful workflow run: ${WORKFLOW_RUN_URL}
+                  EOF
+
+                  existing_prs="$(gh pr list \
+                      --repo "${REPOSITORY}" \
+                      --head "${SOURCE_BRANCH}" \
+                      --base "${TARGET_BRANCH}" \
+                      --state open \
+                      --json number,createdAt \
+                      --jq 'sort_by(.createdAt) | reverse | .[].number')"
+
+                  existing_pr="$(printf '%s\n' "${existing_prs}" | sed -n '1p')"
+                  duplicate_prs="$(printf '%s\n' "${existing_prs}" | sed -n '2,$p')"
+
+                  if [ -n "${existing_pr}" ]; then
+                      gh pr edit "${existing_pr}" \
+                          --repo "${REPOSITORY}" \
+                          --title "${title}" \
+                          --body-file "${body}"
+                      echo "Updated promotion PR #${existing_pr}."
+                  else
+                      created_pr_url="$(gh pr create \
+                          --repo "${REPOSITORY}" \
+                          --head "${SOURCE_BRANCH}" \
+                          --base "${TARGET_BRANCH}" \
+                          --title "${title}" \
+                          --body-file "${body}")"
+                      existing_pr="$(gh pr view "${created_pr_url}" \
+                          --repo "${REPOSITORY}" \
+                          --json number \
+                          --jq '.number')"
+                      echo "Created promotion PR #${existing_pr}."
+                  fi
+
+                  for duplicate_pr in ${duplicate_prs}; do
+                      gh pr close "${duplicate_pr}" \
+                          --repo "${REPOSITORY}" \
+                          --comment "Closing duplicate promotion PR; #${existing_pr} now tracks \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`."
+                  done
