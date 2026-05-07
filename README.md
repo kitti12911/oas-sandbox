@@ -179,6 +179,7 @@ Example patch:
 | `make air`         | Run the service with Air live reload            |
 | `make tidy`        | Run `go mod tidy`                               |
 | `make run`         | Start the HTTP server locally                   |
+| `make lint`        | Run Go and Markdown linting                     |
 | `make fmt`         | Format Go code with `go fmt`                    |
 | `make pretty`      | Format Markdown, YAML, JSON, and JSONC          |
 | `make format`      | Run Go and document/config formatting           |
