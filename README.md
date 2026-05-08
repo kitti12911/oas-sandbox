@@ -172,6 +172,23 @@ Example patch:
 }
 ```
 
+## contract checks
+
+CI generates and compares OpenAPI documents for API changes. Pull requests fail
+when `oasdiff` detects breaking OpenAPI changes. On a protected branch push, an
+intentional breaking release can continue only when the head commit message
+contains `[allow-breaking-api]`.
+
+Example intentional breaking release message:
+
+```text
+feat!: rename user response field [allow-breaking-api]
+```
+
+Prefer adding a new versioned route, such as `/v2/users`, over breaking an
+existing route in place. Use the bypass only after the break is reviewed and
+documented in release notes for API consumers.
+
 ## available commands
 
 | Command            | Description                                     |
