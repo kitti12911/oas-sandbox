@@ -111,6 +111,7 @@ jobs:
                       runner: ubuntu-24.04-arm
         env:
             IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}
+            STAGING_IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}:staging-${{ inputs.release_sha }}-${{ matrix.arch }}
             ARCH_IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}:${{ needs.version.outputs.git_tag }}-${{ matrix.arch }}
             SHA_ARCH_IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}:${{ inputs.release_sha }}-${{ matrix.arch }}
         steps:
@@ -131,42 +132,36 @@ jobs:
                   password: ${{ secrets.ZOT_TOKEN }}
 
             # docker/build-push-action v6.18.0
-            - name: Build Docker image for scan
+            - name: Build and push staging Docker image
               uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
               with:
                   context: .
-                  load: true
                   platforms: ${{ matrix.platform }}
-                  tags: |
-                      ${{ env.ARCH_IMAGE_REF }}
-                      ${{ env.SHA_ARCH_IMAGE_REF }}
-                  cache-from: type=gha,scope=${{ matrix.arch }}
-                  cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
-                  provenance: false
-                  sbom: false
+                  tags: ${{ env.STAGING_IMAGE_REF }}
+                  outputs: type=image,push=true,oci-mediatypes=true
+                  provenance: true
+                  sbom: true
 
             # aquasecurity/trivy-action v0.36.0
             - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
               with:
-                  image-ref: ${{ env.ARCH_IMAGE_REF }}
+                  image-ref: ${{ env.STAGING_IMAGE_REF }}
                   format: table
                   exit-code: 1
                   severity: CRITICAL,HIGH
                   ignore-unfixed: true
+              env:
+                  TRIVY_IMAGE_SRC: remote
+                  TRIVY_PLATFORM: ${{ matrix.platform }}
+                  TRIVY_USERNAME: ${{ secrets.ZOT_USERNAME }}
+                  TRIVY_PASSWORD: ${{ secrets.ZOT_TOKEN }}
 
-            # docker/build-push-action v6.18.0
-            - name: Build and push Docker image
-              uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
-              with:
-                  context: .
-                  platforms: ${{ matrix.platform }}
-                  tags: |
-                      ${{ env.ARCH_IMAGE_REF }}
-                      ${{ env.SHA_ARCH_IMAGE_REF }}
-                  cache-from: type=gha,scope=${{ matrix.arch }}
-                  outputs: type=image,push=true,oci-mediatypes=true
-                  provenance: true
-                  sbom: true
+            - name: Promote scanned image tags
+              run: |
+                  docker buildx imagetools create \
+                      --tag "${ARCH_IMAGE_REF}" \
+                      --tag "${SHA_ARCH_IMAGE_REF}" \
+                      "${STAGING_IMAGE_REF}"
 
     publish:
         name: Publish Multi-Arch Image
