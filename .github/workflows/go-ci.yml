@@ -188,7 +188,15 @@ jobs:
               run: git checkout "${GITHUB_SHA}"
 
             - name: Compare OpenAPI
+              env:
+                  ALLOW_BREAKING_MESSAGE: "[allow-breaking-api]"
               run: |
+                  allow_breaking=false
+                  if [ "${GITHUB_EVENT_NAME}" = "push" ] &&
+                     git log -1 --pretty=%B | grep -Fq "${ALLOW_BREAKING_MESSAGE}"; then
+                      allow_breaking=true
+                  fi
+
                   set +e
                   oasdiff breaking --format json --fail-on ERR \
                       "${RUNNER_TEMP}/openapi-base.yaml" \
@@ -213,7 +221,20 @@ jobs:
                   } >> "${GITHUB_STEP_SUMMARY}"
 
                   breaking_json="$(tr -d '[:space:]' < "${RUNNER_TEMP}/openapi-breaking.json")"
+                  breaking_detected=false
                   if [ "${breaking_json}" != "" ] && [ "${breaking_json}" != "[]" ] && [ "${breaking_json}" != "{\"changes\":[]}" ]; then
+                      breaking_detected=true
+                  fi
+
+                  if [ "${breaking_detected}" = "true" ] && [ "${allow_breaking}" = "true" ]; then
+                      {
+                          echo
+                          echo "> Breaking changes were detected, but release is allowed because \`${ALLOW_BREAKING_MESSAGE}\` is present in the head commit message."
+                      } >> "${GITHUB_STEP_SUMMARY}"
+                      exit 0
+                  fi
+
+                  if [ "${breaking_detected}" = "true" ]; then
                       echo "OpenAPI breaking changes detected."
                       cat "${RUNNER_TEMP}/openapi-breaking.err"
                       exit 1
