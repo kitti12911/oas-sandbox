@@ -9,6 +9,17 @@ on:
             release_sha:
                 required: true
                 type: string
+        outputs:
+            published:
+                value: ${{ jobs.version.outputs.published }}
+            version:
+                value: ${{ jobs.version.outputs.version }}
+            git_tag:
+                value: ${{ jobs.version.outputs.git_tag }}
+            image_digest:
+                value: ${{ jobs.publish.outputs.image_digest }}
+            arm64_digest:
+                value: ${{ jobs.publish.outputs.arm64_digest }}
 
 concurrency:
     group: ${{ github.workflow }}-publish
@@ -91,9 +102,10 @@ jobs:
             fail-fast: false
             matrix:
                 include:
-                    - arch: amd64
-                      platform: linux/amd64
-                      runner: ubuntu-latest
+                    # Re-enable when x86 images are needed again.
+                    # - arch: amd64
+                    #   platform: linux/amd64
+                    #   runner: ubuntu-latest
                     - arch: arm64
                       platform: linux/arm64
                       runner: ubuntu-24.04-arm
@@ -163,6 +175,9 @@ jobs:
             - version
             - build
         if: needs.version.outputs.published == 'true'
+        outputs:
+            image_digest: ${{ steps.image.outputs.digest }}
+            arm64_digest: ${{ steps.image.outputs.arm64_digest }}
         env:
             IMAGE_REF: zot.kittiaccess.work/${{ github.repository }}
             RELEASE_TAG: ${{ needs.version.outputs.git_tag }}
@@ -190,19 +205,23 @@ jobs:
                       tags+=(--tag "${IMAGE_REF}:latest")
                   fi
 
+                  images=(
+                      # "${IMAGE_REF}:${RELEASE_TAG}-amd64"
+                      "${IMAGE_REF}:${RELEASE_TAG}-arm64"
+                  )
+
                   docker buildx imagetools create \
                       "${tags[@]}" \
-                      "${IMAGE_REF}:${RELEASE_TAG}-amd64" \
-                      "${IMAGE_REF}:${RELEASE_TAG}-arm64"
+                      "${images[@]}"
 
             - name: Resolve image digest
               id: image
               run: |
                   digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}" --format '{{.Manifest.Digest}}')"
-                  amd64_digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}-amd64" --format '{{.Manifest.Digest}}')"
+                  # amd64_digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}-amd64" --format '{{.Manifest.Digest}}')"
                   arm64_digest="$(docker buildx imagetools inspect "${IMAGE_REF}:${RELEASE_TAG}-arm64" --format '{{.Manifest.Digest}}')"
                   echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
-                  echo "amd64_digest=${amd64_digest}" >> "${GITHUB_OUTPUT}"
+                  # echo "amd64_digest=${amd64_digest}" >> "${GITHUB_OUTPUT}"
                   echo "arm64_digest=${arm64_digest}" >> "${GITHUB_OUTPUT}"
 
             # sigstore/cosign-installer v4.1.1
@@ -223,11 +242,11 @@ jobs:
                       --key "${key_file}" \
                       "${IMAGE_REF}@${{ steps.image.outputs.digest }}"
 
-                  cosign sign --yes \
-                      --new-bundle-format=false \
-                      --use-signing-config=false \
-                      --key "${key_file}" \
-                      "${IMAGE_REF}@${{ steps.image.outputs.amd64_digest }}"
+                  # cosign sign --yes \
+                  #     --new-bundle-format=false \
+                  #     --use-signing-config=false \
+                  #     --key "${key_file}" \
+                  #     "${IMAGE_REF}@${{ steps.image.outputs.amd64_digest }}"
 
                   cosign sign --yes \
                       --new-bundle-format=false \
