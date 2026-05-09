@@ -50,7 +50,7 @@ jobs:
         name: Generate
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:4d4df528102fbc311564d5225c78178ef4069afe0b4bf7e3b90cd8bcf6e38645
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -151,7 +151,7 @@ jobs:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:4d4df528102fbc311564d5225c78178ef4069afe0b4bf7e3b90cd8bcf6e38645
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -260,7 +260,7 @@ jobs:
         needs:
             - generate
         container:
-            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:216b1bfb7a3d0955a4c1a7ffb5ab2b3203d8fd538f1b8e181668e1dd88135571
+            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:e05509dad7e83d8f54bbf648584ab89e6aabd6d07adff200bea2180bba702e49
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
