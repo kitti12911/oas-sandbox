@@ -445,7 +445,7 @@ jobs:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
               with:
                   repository: ${{ github.repository_owner }}/homelab-devops
-                  ref: develop
+                  ref: main
                   path: homelab-devops
                   token: ${{ steps.homelab-devops-token.outputs.token }}
 
@@ -508,15 +508,15 @@ jobs:
                   git commit -m "chore(oas-sandbox): update ${ENVIRONMENT} image to ${RELEASE_TAG}"
 
                   for attempt in 1 2 3; do
-                      if git push origin HEAD:develop; then
+                      if git push origin HEAD:main; then
                           exit 0
                       fi
 
-                      git fetch origin develop
-                      git rebase origin/develop
+                      git fetch origin main
+                      git rebase origin/main
                   done
 
-                  echo "Unable to push develop Helm values update after retries."
+                  echo "Unable to push Helm values update after retries."
                   exit 1
 
     sync-down:
