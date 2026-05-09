@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/danielgtaylor/huma/v2/yaml"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 	"oas-sandbox/internal/api"
@@ -32,7 +34,11 @@ func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceCl
 	registerSwaggerUIAssets(mux)
 	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
 
-	handler := otelhttp.NewHandler(mux, serviceName)
+	handler := otelhttp.NewHandler(
+		gzipHandler(accessLogHandler(recoverHandler(mux))),
+		serviceName,
+		otelhttp.WithFilter(traceableRequest),
+	)
 	return &HTTPServer{
 		server: &http.Server{
 			Addr:              fmt.Sprintf(":%d", port),
@@ -40,6 +46,115 @@ func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceCl
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}
+}
+
+func accessLogHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !traceableRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		start := time.Now()
+		recorder := &accessLogResponseWriter{
+			ResponseWriter: w,
+			status:         http.StatusOK,
+		}
+
+		next.ServeHTTP(recorder, r)
+
+		attrs := []any{
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", recorder.status,
+			"duration", time.Since(start),
+			"bytes", recorder.bytes,
+		}
+		if route := r.Pattern; route != "" {
+			attrs = append(attrs, "route", route)
+		}
+		if traceID := extractTraceID(r.Context()); traceID != "" {
+			attrs = append(attrs, "trace_id", traceID)
+		}
+
+		switch {
+		case recorder.status >= http.StatusInternalServerError:
+			slog.ErrorContext(r.Context(), "HTTP request completed", attrs...)
+		case recorder.status >= http.StatusBadRequest:
+			slog.WarnContext(r.Context(), "HTTP request completed", attrs...)
+		default:
+			slog.InfoContext(r.Context(), "HTTP request completed", attrs...)
+		}
+	})
+}
+
+type accessLogResponseWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *accessLogResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *accessLogResponseWriter) Write(body []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(body)
+	w.bytes += n
+	return n, err
+}
+
+func recoverHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.ErrorContext(r.Context(), "HTTP request panic", "error", recovered)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+		}()
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func gzipHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Add("Vary", "Accept-Encoding")
+		w.Header().Set("Content-Encoding", "gzip")
+
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+
+		next.ServeHTTP(gzipResponseWriter{ResponseWriter: w, writer: gz}, r)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer *gzip.Writer
+}
+
+func (w gzipResponseWriter) Write(body []byte) (int, error) {
+	return w.writer.Write(body)
+}
+
+func traceableRequest(r *http.Request) bool {
+	return r.URL.Path != "/health"
+}
+
+func extractTraceID(ctx context.Context) string {
+	span := trace.SpanFromContext(ctx)
+	if span.SpanContext().IsValid() {
+		return span.SpanContext().TraceID().String()
+	}
+
+	return ""
 }
 
 func NewAPI(mux *http.ServeMux, serviceName string, userClient userv1.UserServiceClient) huma.API {
