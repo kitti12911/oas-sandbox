@@ -50,7 +50,7 @@ jobs:
         name: Generate
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:be20f86e4d9e918b3fd00a184668572c81307b279441858e93d48e81c2365762
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -124,7 +124,16 @@ jobs:
                   cache: false
 
             - name: Test with race detector and coverage
-              run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+              run: |
+                  go list -f '{{.Dir}}' ./... \
+                      | grep -v '/gen/' \
+                      | sed "s#^${PWD}#.#" \
+                      | xargs go test -race -coverprofile=coverage.out -covermode=atomic
+
+            - name: Remove generated code from coverage
+              run: |
+                  awk 'NR == 1 || ($1 !~ /\/gen\// && $1 !~ /(_gen|_generated)\.go:/)' coverage.out > coverage.filtered.out
+                  mv coverage.filtered.out coverage.out
 
             - name: Show coverage
               run: |
@@ -142,7 +151,7 @@ jobs:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:be20f86e4d9e918b3fd00a184668572c81307b279441858e93d48e81c2365762
+            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
@@ -251,7 +260,7 @@ jobs:
         needs:
             - generate
         container:
-            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:7a30c1fc6740b99da063296ae0ef03cbeaec1d599dfea47a28ddeb51d9ed48e4
+            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:e05509dad7e83d8f54bbf648584ab89e6aabd6d07adff200bea2180bba702e49
             credentials:
                 username: ${{ secrets.ZOT_USERNAME }}
                 password: ${{ secrets.ZOT_TOKEN }}
