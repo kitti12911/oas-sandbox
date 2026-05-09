@@ -5,10 +5,12 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -35,7 +37,7 @@ func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceCl
 	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
 
 	handler := otelhttp.NewHandler(
-		gzipHandler(accessLogHandler(recoverHandler(mux))),
+		accessLogHandler(gzipHandler(recoverHandler(mux))),
 		serviceName,
 		otelhttp.WithFilter(traceableRequest),
 	)
@@ -90,16 +92,25 @@ func accessLogHandler(next http.Handler) http.Handler {
 
 type accessLogResponseWriter struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status      int
+	bytes       int
+	wroteHeader bool
 }
 
 func (w *accessLogResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
 	w.status = status
+	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(status)
 }
 
 func (w *accessLogResponseWriter) Write(body []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+
 	n, err := w.ResponseWriter.Write(body)
 	w.bytes += n
 	return n, err
@@ -118,6 +129,57 @@ func recoverHandler(next http.Handler) http.Handler {
 	})
 }
 
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer      *gzip.Writer
+	wroteHeader bool
+	gzipEnabled bool
+}
+
+func (grw *gzipResponseWriter) WriteHeader(status int) {
+	if grw.wroteHeader {
+		return
+	}
+
+	grw.wroteHeader = true
+	if status >= http.StatusOK && status < http.StatusMultipleChoices {
+		grw.Header().Del("Content-Length")
+		grw.Header().Set("Content-Encoding", "gzip")
+		grw.writer = gzipPool.Get().(*gzip.Writer)
+		grw.writer.Reset(grw.ResponseWriter)
+		grw.gzipEnabled = true
+	}
+
+	grw.ResponseWriter.WriteHeader(status)
+}
+
+func (grw *gzipResponseWriter) Write(b []byte) (int, error) {
+	if !grw.wroteHeader {
+		grw.WriteHeader(http.StatusOK)
+	}
+	if !grw.gzipEnabled {
+		return grw.ResponseWriter.Write(b)
+	}
+	return grw.writer.Write(b)
+}
+
+func (grw *gzipResponseWriter) Close() error {
+	if grw.writer == nil {
+		return nil
+	}
+
+	err := grw.writer.Close()
+	gzipPool.Put(grw.writer)
+	grw.writer = nil
+	return err
+}
+
+var gzipPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(io.Discard)
+	},
+}
+
 func gzipHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -126,22 +188,16 @@ func gzipHandler(next http.Handler) http.Handler {
 		}
 
 		w.Header().Add("Vary", "Accept-Encoding")
-		w.Header().Set("Content-Encoding", "gzip")
 
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
+		grw := &gzipResponseWriter{ResponseWriter: w}
+		defer func() {
+			if err := grw.Close(); err != nil {
+				slog.WarnContext(r.Context(), "close gzip response writer", "error", err)
+			}
+		}()
 
-		next.ServeHTTP(gzipResponseWriter{ResponseWriter: w, writer: gz}, r)
+		next.ServeHTTP(grw, r)
 	})
-}
-
-type gzipResponseWriter struct {
-	http.ResponseWriter
-	writer *gzip.Writer
-}
-
-func (w gzipResponseWriter) Write(body []byte) (int, error) {
-	return w.writer.Write(body)
 }
 
 func traceableRequest(r *http.Request) bool {
