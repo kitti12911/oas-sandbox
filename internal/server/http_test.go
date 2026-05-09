@@ -60,6 +60,47 @@ func TestHTTPServerGzip(t *testing.T) {
 	assert.Contains(t, string(body), `"title":"OAS Sandbox"`)
 }
 
+func TestGzipHandlerDoesNotCompressErrorResponse(t *testing.T) {
+	handler := gzipHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	req := newRequest(http.MethodGet, "/bad", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Empty(t, rec.Header().Get("Content-Encoding"))
+	assert.Contains(t, rec.Header().Values("Vary"), "Accept-Encoding")
+	assert.Contains(t, rec.Body.String(), "bad request")
+}
+
+func TestGzipHandlerCompressesSuccessfulNonOKResponse(t *testing.T) {
+	handler := gzipHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "7")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("created"))
+	}))
+	req := newRequest(http.MethodPost, "/created", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.Equal(t, "gzip", rec.Header().Get("Content-Encoding"))
+	assert.Empty(t, rec.Header().Get("Content-Length"))
+
+	gz, err := gzip.NewReader(rec.Body)
+	require.NoError(t, err)
+	defer gz.Close()
+
+	body, err := io.ReadAll(gz)
+	require.NoError(t, err)
+	assert.Equal(t, "created", string(body))
+}
+
 func TestRecoverHandler(t *testing.T) {
 	handler := recoverHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
@@ -101,6 +142,28 @@ func TestAccessLogHandlerLogsRequest(t *testing.T) {
 	assert.Contains(t, logBody, `"method":"POST"`)
 	assert.Contains(t, logBody, `"path":"/v1/users"`)
 	assert.Contains(t, logBody, `"status":201`)
+	assert.Contains(t, logBody, `"bytes":2`)
+}
+
+func TestAccessLogHandlerCapturesImplicitOK(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+
+	handler := accessLogHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	req := newRequest(http.MethodGet, "/v1/users", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	logBody := logs.String()
+	assert.Contains(t, logBody, `"status":200`)
 	assert.Contains(t, logBody, `"bytes":2`)
 }
 
