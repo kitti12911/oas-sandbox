@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	userv1 "oas-sandbox/gen/grpc/user/v1"
+	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 	"oas-sandbox/internal/config"
 	"oas-sandbox/internal/server"
 )
@@ -90,7 +91,12 @@ func run() int {
 	slog.InfoContext(ctx, "connected to user service", "addr", userAddr)
 
 	// Start HTTP server
-	srv := server.NewHTTPServer(cfg.Service.Port, cfg.Service.Name, userv1.NewUserServiceClient(userConn))
+	srv := server.NewHTTPServer(
+		cfg.Service.Port,
+		cfg.Service.Name,
+		userv1.NewUserServiceClient(userConn),
+		workerv1.NewWorkerServiceClient(userConn),
+	)
 
 	serverErr := make(chan error, 1)
 	go func() {

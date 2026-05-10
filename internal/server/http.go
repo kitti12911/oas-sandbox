@@ -20,18 +20,25 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	userv1 "oas-sandbox/gen/grpc/user/v1"
+	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 	"oas-sandbox/internal/api"
 	"oas-sandbox/internal/api/system"
 	usersv1 "oas-sandbox/internal/api/users/v1"
+	workerv1api "oas-sandbox/internal/api/worker/v1"
 )
 
 type HTTPServer struct {
 	server *http.Server
 }
 
-func NewHTTPServer(port int, serviceName string, userClient userv1.UserServiceClient) *HTTPServer {
+func NewHTTPServer(
+	port int,
+	serviceName string,
+	userClient userv1.UserServiceClient,
+	workerClient workerv1.WorkerServiceClient,
+) *HTTPServer {
 	mux := http.NewServeMux()
-	humaAPI := NewAPI(mux, serviceName, userClient)
+	humaAPI := NewAPI(mux, serviceName, userClient, workerClient)
 	registerOpenAPISpec(mux, humaAPI)
 	registerSwaggerUIAssets(mux)
 	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
@@ -213,20 +220,27 @@ func extractTraceID(ctx context.Context) string {
 	return ""
 }
 
-func NewAPI(mux *http.ServeMux, serviceName string, userClient userv1.UserServiceClient) huma.API {
+func NewAPI(
+	mux *http.ServeMux,
+	serviceName string,
+	userClient userv1.UserServiceClient,
+	workerClient workerv1.WorkerServiceClient,
+) huma.API {
 	humaConfig := huma.DefaultConfig("OAS Sandbox", "0.1.0")
 	humaConfig.Info.Description = "OpenAPI sandbox for homelab API experiments."
 	humaConfig.Tags = []*huma.Tag{
 		{Name: api.TagSystem, Description: "Service health and operational endpoints."},
 		{Name: api.TagUsers, Description: "User resource endpoints."},
+		{Name: api.TagWorker, Description: "Background worker job endpoints."},
 	}
 	humaConfig.DocsPath = ""
 	humaConfig.OpenAPIPath = ""
 
 	humaAPI := humago.New(mux, humaConfig)
 	registerAPI(humaAPI, api.Deps{
-		ServiceName: serviceName,
-		UserClient:  userClient,
+		ServiceName:  serviceName,
+		UserClient:   userClient,
+		WorkerClient: workerClient,
 	})
 
 	return humaAPI
@@ -248,6 +262,7 @@ func registerAPI(h huma.API, deps api.Deps) {
 
 	v1 := huma.NewGroup(h, "/v1")
 	usersv1.Register(v1, deps)
+	workerv1api.Register(v1, deps)
 }
 
 func registerOpenAPISpec(mux *http.ServeMux, humaAPI huma.API) {

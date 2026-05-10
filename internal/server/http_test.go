@@ -19,6 +19,7 @@ import (
 
 	commonv1 "oas-sandbox/gen/grpc/common/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
+	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 )
 
 func newRequest(method, target string, body io.Reader) *http.Request {
@@ -28,8 +29,12 @@ func newRequest(method, target string, body io.Reader) *http.Request {
 	return httptest.NewRequestWithContext(context.Background(), method, target, body)
 }
 
+func newTestHTTPServer(userClient userv1.UserServiceClient) *HTTPServer {
+	return NewHTTPServer(0, "oas-sandbox", userClient, fakeWorkerClient{})
+}
+
 func TestHTTPServerHealth(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 	req := newRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 
@@ -40,7 +45,7 @@ func TestHTTPServerHealth(t *testing.T) {
 }
 
 func TestHTTPServerGzip(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 	req := newRequest(http.MethodGet, "/openapi.json", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
@@ -188,7 +193,7 @@ func TestAccessLogHandlerSkipsHealth(t *testing.T) {
 }
 
 func TestHTTPServerOpenAPI(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 	req := newRequest(http.MethodGet, "/openapi.json", nil)
 	rec := httptest.NewRecorder()
 
@@ -201,7 +206,7 @@ func TestHTTPServerOpenAPI(t *testing.T) {
 }
 
 func TestDocsServesSwaggerUIOfflineAndAllowsDownloads(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 	req := newRequest(http.MethodGet, "/docs", nil)
 	rec := httptest.NewRecorder()
 
@@ -222,7 +227,7 @@ func TestDocsServesSwaggerUIOfflineAndAllowsDownloads(t *testing.T) {
 }
 
 func TestSwaggerUIAssetsServed(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 
 	tests := []struct {
 		path      string
@@ -248,7 +253,7 @@ func TestSwaggerUIAssetsServed(t *testing.T) {
 }
 
 func TestOpenAPIDownload(t *testing.T) {
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{})
+	srv := newTestHTTPServer(fakeUserClient{})
 
 	tests := []struct {
 		path        string
@@ -287,7 +292,7 @@ func TestOpenAPIDownload(t *testing.T) {
 
 func TestGetUserEndpoint(t *testing.T) {
 	client := fakeUserClient{}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	req := newRequest(http.MethodGet, "/v1/users/0198f8f0-0000-7000-8000-000000000001", nil)
 	rec := httptest.NewRecorder()
 
@@ -307,7 +312,7 @@ func TestGetUserEndpoint(t *testing.T) {
 func TestListUsersEndpoint(t *testing.T) {
 	var got *userv1.ListUsersRequest
 	client := fakeUserClient{listReq: &got}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	req := newRequest(
 		http.MethodGet,
 		"/v1/users?page=2&pageSize=5"+
@@ -345,7 +350,7 @@ func TestListUsersEndpoint(t *testing.T) {
 func TestAdvancedListUsersEndpoint(t *testing.T) {
 	var got *userv1.ListUsersRequest
 	client := fakeUserClient{listReq: &got}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	body := strings.NewReader(`{
 		"pagination": {
 			"page": 3,
@@ -426,7 +431,7 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 func TestCreateUserEndpoint(t *testing.T) {
 	var got *userv1.CreateUserRequest
 	client := fakeUserClient{createReq: &got}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	body := strings.NewReader(`{
 		"email": "new@example.com",
 		"username": "new-user",
@@ -474,7 +479,7 @@ func TestCreateUserEndpoint(t *testing.T) {
 func TestUpdateUserEndpoint(t *testing.T) {
 	var got *userv1.UpdateUserRequest
 	client := fakeUserClient{updateReq: &got}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	body := strings.NewReader(`{
 		"email": "updated@example.com",
 		"username": "updated-user",
@@ -517,7 +522,7 @@ func TestUpdateUserEndpoint(t *testing.T) {
 func TestPatchUserEndpoint(t *testing.T) {
 	var got *userv1.PatchUserRequest
 	client := fakeUserClient{patchReq: &got}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	body := strings.NewReader(`{
 		"username": "patched-user",
 		"displayName": null,
@@ -548,7 +553,7 @@ func TestPatchUserEndpoint(t *testing.T) {
 
 func TestPatchUserEndpointRejectsEmptyBody(t *testing.T) {
 	client := fakeUserClient{}
-	srv := NewHTTPServer(0, "oas-sandbox", client)
+	srv := newTestHTTPServer(client)
 	req := newRequest(http.MethodPatch, "/v1/users/0198f8f0-0000-7000-8000-000000000001", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -557,6 +562,31 @@ func TestPatchUserEndpointRejectsEmptyBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "at least one field is required")
+}
+
+func TestSubmitWorkerJobEndpoint(t *testing.T) {
+	var got *workerv1.SubmitJobRequest
+	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{}, fakeWorkerClient{submitReq: &got})
+	body := strings.NewReader(`{
+		"id": "job-1",
+		"type": "debug.print",
+		"payload": {
+			"message": "hello"
+		}
+	}`)
+	req := newRequest(http.MethodPost, "/v1/worker/jobs", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	srv.server.Handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusAccepted, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"id":"job-1"`)
+
+	require.NotNil(t, got)
+	assert.Equal(t, "job-1", got.GetJob().GetId())
+	assert.Equal(t, "debug.print", got.GetJob().GetType())
+	assert.Equal(t, "hello", got.GetJob().GetPayload().GetFields()["message"].GetStringValue())
 }
 
 type fakeUserClient struct {
@@ -694,4 +724,20 @@ func fakeUser(
 		CreatedAt: timestamppb.New(now),
 		UpdatedAt: timestamppb.New(now),
 	}
+}
+
+type fakeWorkerClient struct {
+	submitReq **workerv1.SubmitJobRequest
+}
+
+func (c fakeWorkerClient) SubmitJob(
+	_ context.Context,
+	req *workerv1.SubmitJobRequest,
+	_ ...grpc.CallOption,
+) (*workerv1.SubmitJobResponse, error) {
+	if c.submitReq != nil {
+		*c.submitReq = req
+	}
+
+	return &workerv1.SubmitJobResponse{Id: req.GetJob().GetId()}, nil
 }
