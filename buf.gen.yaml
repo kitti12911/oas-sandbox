@@ -1,10 +1,10 @@
 version: v2
 inputs:
     - git_repo: https://github.com/kitti12911/proto-sandbox.git
-      tag: v1.2.0
+      tag: v1.4.0
       paths:
           - common/v1
-          - user/v1
+          - user/v1/user.proto
 plugins:
     - local: protoc-gen-go
       out: gen/grpc

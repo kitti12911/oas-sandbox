@@ -74,7 +74,7 @@ func TestReadBreakingChangesAcceptsNumericLevel(t *testing.T) {
 		t.Fatalf("create breaking json: %v", err)
 	}
 
-	_, err = file.WriteString(`[{"id":"api-path-removed-without-deprecation","text":"api path removed without deprecation","level":3,"operation":"GET","operationId":"get-v1-users-mock","path":"/v1/users/mock","section":"paths"}]`)
+	_, err = file.WriteString(`[{"id":"api-path-removed-without-deprecation","text":"api path removed without deprecation","level":3,"operation":"GET","operationId":"get-v1-users-legacy","path":"/v1/users/legacy","section":"paths"}]`)
 	if err != nil {
 		t.Fatalf("write breaking json: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestReadBreakingChangesAcceptsNumericLevel(t *testing.T) {
 	if len(changes) != 1 {
 		t.Fatalf("expected 1 breaking change, got %d", len(changes))
 	}
-	if api := changeAPI(changes[0]); api != "GET /v1/users/mock" {
+	if api := changeAPI(changes[0]); api != "GET /v1/users/legacy" {
 		t.Fatalf("unexpected breaking API: %s", api)
 	}
 }
@@ -142,7 +142,7 @@ func TestWriteJSONReport(t *testing.T) {
 			Text:      "api path removed without deprecation",
 			Level:     float64(3),
 			Operation: "GET",
-			Path:      "/v1/users/mock",
+			Path:      "/v1/users/legacy",
 		}},
 	)
 
@@ -171,7 +171,7 @@ func TestWriteJSONReport(t *testing.T) {
 	if got.APIVersionBumps[0].FromPath != "/v1/users" || got.APIVersionBumps[0].ToPath != "/v2/users" {
 		t.Fatalf("unexpected version bump: %#v", got.APIVersionBumps[0])
 	}
-	if got.BreakingChanges[0].API != "GET /v1/users/mock" {
+	if got.BreakingChanges[0].API != "GET /v1/users/legacy" {
 		t.Fatalf("unexpected breaking API: %#v", got.BreakingChanges[0])
 	}
 }
