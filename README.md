@@ -17,6 +17,8 @@ generated clients from
   [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
 - `GET /v1/users/{id}` REST gateway to
   [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
+- `POST /v1/worker/jobs` REST gateway to submit background jobs through
+  [`grpc-sandbox`](https://github.com/kitti12911/grpc-sandbox)
 - structured logs from [`lib-util`](https://github.com/kitti12911/lib-util)
 - tracing and profiling from
   [`lib-monitor`](https://github.com/kitti12911/lib-monitor)
@@ -44,7 +46,8 @@ oas-sandbox/
 ├── internal/
 │   ├── api/
 │   │   ├── system/             # health endpoint
-│   │   └── users/              # user REST resource
+│   │   ├── users/              # user REST resource
+│   │   └── worker/             # worker job REST resource
 │   ├── config/                 # config structs
 │   └── server/                 # Huma HTTP server and Swagger UI assets
 ├── buf.gen.yaml
@@ -99,6 +102,7 @@ Then open:
 - <http://localhost:8080/health>
 - <http://localhost:8080/v1/users?page=1&pageSize=10>
 - <http://localhost:8080/v1/users/0198f8f0-0000-7000-8000-000000000001>
+- <http://localhost:8080/v1/worker/jobs>
 
 ## API
 
@@ -111,6 +115,7 @@ Implemented routes:
 - `GET /v1/users/{id}`
 - `PUT /v1/users/{id}`
 - `PATCH /v1/users/{id}`
+- `POST /v1/worker/jobs`
 
 `GET /v1/users` supports query parameters for the common gRPC list request:
 
@@ -168,6 +173,19 @@ Example patch:
         "address": {
             "city": "Phuket"
         }
+    }
+}
+```
+
+`POST /v1/worker/jobs` submits a background job through `grpc-sandbox`, which
+publishes it to `worker-sandbox`:
+
+```json
+{
+    "id": "job-1",
+    "type": "debug.print",
+    "payload": {
+        "message": "hello"
     }
 }
 ```
