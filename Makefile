@@ -49,3 +49,5 @@ gen-patch:
 
 gen-openapi:
 	@go run ./cmd/gen-oas
+
+# pipeline triggered #1
