@@ -17,6 +17,7 @@ on:
             - "config.example.yml"
             - "go.mod"
             - "go.sum"
+            - "scripts/ci/**"
             - "**/*.go"
             - "**/*.yml"
             - "**/*.yaml"
@@ -33,6 +34,7 @@ on:
             - "config.example.yml"
             - "go.mod"
             - "go.sum"
+            - "scripts/ci/**"
             - "**/*.go"
             - "**/*.yml"
             - "**/*.yaml"
@@ -50,19 +52,16 @@ jobs:
         name: Generate
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/image-toolchain@sha256:55e03f1a59c20fbd37a400a95924be84fbd1814db2bf511c4fdb3fdefbcf6b2c
             credentials:
-                username: ${{ secrets.ZOT_USERNAME }}
-                password: ${{ secrets.ZOT_TOKEN }}
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
             - name: Generate code
-              run: |
-                  rm -rf gen/grpc
-                  buf generate
-                  go run ./cmd/gen-patch
+              run: ./scripts/ci/generate-code.sh
 
             # actions/upload-artifact v7.0.1
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -77,6 +76,11 @@ jobs:
         runs-on: ubuntu-latest
         needs:
             - generate
+        container:
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/image-toolchain@sha256:55e03f1a59c20fbd37a400a95924be84fbd1814db2bf511c4fdb3fdefbcf6b2c
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -87,26 +91,19 @@ jobs:
                   name: generated-code
                   path: .
 
-            # actions/setup-go v6.4.0
-            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
-              with:
-                  go-version-file: go.mod
-                  cache: false
-
-            - name: Go vet
-              run: go vet ./...
-
-            # golangci/golangci-lint-action v9.2.0
-            - uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20
-              with:
-                  version: v2.12.1
-                  args: --timeout=5m
+            - name: Lint Go code
+              run: ./scripts/ci/go-lint.sh
 
     test:
         name: Test
         runs-on: ubuntu-latest
         needs:
             - generate
+        container:
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/image-toolchain@sha256:55e03f1a59c20fbd37a400a95924be84fbd1814db2bf511c4fdb3fdefbcf6b2c
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -117,23 +114,10 @@ jobs:
                   name: generated-code
                   path: .
 
-            # actions/setup-go v6.4.0
-            - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
-              with:
-                  go-version-file: go.mod
-                  cache: false
-
-            - name: Test with race detector and coverage
-              run: |
-                  go list -f '{{.Dir}}' ./... \
-                      | grep -v '/gen/' \
-                      | sed "s#^${PWD}#.#" \
-                      | xargs go test -race -coverprofile=coverage.out -covermode=atomic
-
-            - name: Remove generated code from coverage
-              run: |
-                  awk 'NR == 1 || ($1 !~ /\/gen\// && $1 !~ /(_gen|_generated)\.go:/)' coverage.out > coverage.filtered.out
-                  mv coverage.filtered.out coverage.out
+            - name: Test with coverage
+              run: ./scripts/ci/go-test.sh
+              env:
+                  GO_TEST_RACE: false
 
             - name: Show coverage
               run: |
@@ -151,10 +135,10 @@ jobs:
         name: OpenAPI Change Report
         runs-on: ubuntu-latest
         container:
-            image: zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/image-toolchain@sha256:55e03f1a59c20fbd37a400a95924be84fbd1814db2bf511c4fdb3fdefbcf6b2c
             credentials:
-                username: ${{ secrets.ZOT_USERNAME }}
-                password: ${{ secrets.ZOT_TOKEN }}
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         env:
             BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
             REPORT_MODE: ${{ github.event_name == 'pull_request' && 'breaking' || 'main' }}
@@ -260,10 +244,10 @@ jobs:
         needs:
             - generate
         container:
-            image: zot.kittiaccess.work/kitti12911/security-toolchain@sha256:e05509dad7e83d8f54bbf648584ab89e6aabd6d07adff200bea2180bba702e49
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/security-toolchain@sha256:b36a3062657cd9375045051ef5b45a41f099b317935c00002f6b86238d7d0089
             credentials:
-                username: ${{ secrets.ZOT_USERNAME }}
-                password: ${{ secrets.ZOT_TOKEN }}
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -276,35 +260,25 @@ jobs:
                   name: generated-code
                   path: .
 
-            - name: govulncheck
-              run: govulncheck ./...
-
-            - name: Semgrep
-              run: semgrep scan --config=p/golang --config=p/secrets --error
+            - name: govulncheck and Semgrep
+              run: ./scripts/ci/security-scan.sh
 
     security:
-        name: Security
+        name: Supply Chain Security
         runs-on: ubuntu-latest
+        container:
+            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/supply-chain-toolchain@sha256:4926af9cfd6d277e131c7b990f4bba10895085b268a67cb7045284006478f997
+            credentials:
+                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
+                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
               with:
                   fetch-depth: 0
 
-            # aquasecurity/trivy-action v0.36.0
-            - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
-              with:
-                  scan-type: fs
-                  scan-ref: .
-                  scanners: vuln,secret,misconfig
-                  exit-code: 1
-                  severity: CRITICAL,HIGH
-                  ignore-unfixed: true
-
-            # gitleaks/gitleaks-action v2.3.9
-            - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Trivy and Gitleaks
+              run: ./scripts/ci/supply-chain-scan.sh
 
     release:
         name: Release
@@ -318,6 +292,7 @@ jobs:
         if: |
             always() &&
             github.event_name == 'push' &&
+            needs.generate.result == 'success' &&
             needs.lint.result == 'success' &&
             needs.test.result == 'success' &&
             needs.toolchain-security.result == 'success' &&
@@ -432,6 +407,11 @@ jobs:
         permissions:
             contents: read
         steps:
+            # actions/checkout v6.0.2
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+              with:
+                  path: oas-sandbox
+
             # actions/create-github-app-token v2.1.4
             - uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
               id: homelab-devops-token
@@ -452,72 +432,28 @@ jobs:
             - name: Update environment values image
               env:
                   VALUES_FILE: homelab-devops/apps/kubernetes/app/${{ github.ref_name }}/oas-sandbox/values.yml
-                  IMAGE_REPOSITORY: zot.lan/${{ github.repository }}
+                  IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+                  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+                  DEPLOY_IMAGE_REGISTRY: ${{ vars.DEPLOY_IMAGE_REGISTRY }}
+                  DEPLOY_IMAGE_NAMESPACE: ${{ vars.DEPLOY_IMAGE_NAMESPACE }}
+                  IMAGE_NAME: oas-sandbox
                   RELEASE_TAG: ${{ needs.release.outputs.git_tag }}
                   IMAGE_DIGEST: ${{ needs.release.outputs.image_digest }}
-              run: |
-                  if [ ! -f "${VALUES_FILE}" ]; then
-                      echo "${VALUES_FILE} does not exist; skipping Helm values update."
-                      exit 0
-                  fi
-
-                  tmp_file="$(mktemp)"
-                  awk \
-                      -v image_repository="${IMAGE_REPOSITORY}" \
-                      -v release_tag="${RELEASE_TAG}" \
-                      -v image_digest="${IMAGE_DIGEST}" '
-                      /^image:/ {
-                          in_image = 1
-                          print
-                          next
-                      }
-                      in_image && $0 !~ /^    / {
-                          in_image = 0
-                      }
-                      in_image && $1 == "repository:" {
-                          print "    repository: " image_repository
-                          next
-                      }
-                      in_image && $1 == "tag:" {
-                          print "    tag: \"" release_tag "\""
-                          next
-                      }
-                      in_image && $1 == "digest:" {
-                          print "    digest: \"" image_digest "\""
-                          next
-                      }
-                      { print }
-                  ' "${VALUES_FILE}" > "${tmp_file}"
-                  mv "${tmp_file}" "${VALUES_FILE}"
+              run: ./oas-sandbox/scripts/ci/update-helm-image-values.sh
 
             - name: Commit values update
               env:
                   ENVIRONMENT: ${{ github.ref_name }}
                   RELEASE_TAG: ${{ needs.release.outputs.git_tag }}
-              run: |
-                  cd homelab-devops
-
-                  if git diff --quiet; then
-                      echo "${ENVIRONMENT} Helm values already point at ${RELEASE_TAG}."
-                      exit 0
-                  fi
-
-                  git config user.name "homelab-image-update[bot]"
-                  git config user.email "homelab-image-update[bot]@users.noreply.github.com"
-                  git add "apps/kubernetes/app/${ENVIRONMENT}/oas-sandbox/values.yml"
-                  git commit -m "chore(oas-sandbox): update ${ENVIRONMENT} image to ${RELEASE_TAG}"
-
-                  for attempt in 1 2 3; do
-                      if git push origin HEAD:main; then
-                          exit 0
-                      fi
-
-                      git fetch origin main
-                      git rebase origin/main
-                  done
-
-                  echo "Unable to push Helm values update after retries."
-                  exit 1
+                  GIT_WORKDIR: homelab-devops
+                  GIT_ADD_PATH: apps/kubernetes/app/${{ github.ref_name }}/oas-sandbox/values.yml
+                  GIT_COMMIT_MESSAGE: "chore(oas-sandbox): update ${{ github.ref_name }} image to ${{ needs.release.outputs.git_tag }}"
+                  GIT_USER_NAME: homelab-image-update[bot]
+                  GIT_USER_EMAIL: homelab-image-update[bot]@users.noreply.github.com
+                  GIT_PUSH_REMOTE: origin
+                  GIT_PUSH_REF: HEAD:main
+                  GIT_REBASE_BRANCH: main
+              run: ./oas-sandbox/scripts/ci/commit-and-push-changes.sh
 
     sync-down:
         name: Sync Main To Prerelease Branches
