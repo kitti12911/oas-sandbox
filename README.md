@@ -35,6 +35,38 @@ Optional:
 
 - [prettier](https://prettier.io/) for Markdown, YAML, JSON, and JSONC formatting
 
+## ci commands
+
+reusable CI entrypoints live in `scripts/ci/` so GitHub Actions and GitLab CI
+can call the same commands with provider-specific orchestration around them.
+
+| command                                    | purpose                            |
+| ------------------------------------------ | ---------------------------------- |
+| `./scripts/ci/generate-code.sh`            | generate protobuf and PATCH code   |
+| `./scripts/ci/go-lint.sh`                  | run `go vet` and `golangci-lint`   |
+| `./scripts/ci/go-test.sh`                  | run tests with filtered coverage   |
+| `./scripts/ci/markdownlint.sh`             | run Markdown linting               |
+| `./scripts/ci/security-scan.sh`            | run `govulncheck` and Semgrep      |
+| `./scripts/ci/supply-chain-scan.sh`        | run Trivy and Gitleaks             |
+| `./scripts/ci/semantic-release-plan.sh`    | preview the next semantic release  |
+| `./scripts/ci/semantic-release-publish.sh` | publish the semantic release       |
+| `./scripts/ci/update-helm-image-values.sh` | update homelab GitOps image values |
+
+GitHub Actions uses `TOOLCHAIN_REGISTRY` and `TOOLCHAIN_IMAGE_NAMESPACE` to
+resolve shared CI toolchain images, and `IMAGE_REGISTRY` plus `IMAGE_NAMESPACE`
+to publish the application image. GitLab should map its CI variables and image
+credentials to the same script inputs instead of duplicating command logic.
+The `homelab-devops` values update in `.github/workflows/go-ci.yml` is
+GitHub-specific homelab orchestration, not part of the portable script contract.
+GitLab deployments can use a different project, folder layout, or deployment
+tool by calling the same `scripts/ci` build/release helpers and adding its own
+deploy job. `DEPLOY_IMAGE_REGISTRY` and `DEPLOY_IMAGE_NAMESPACE` only affect the
+homelab GitOps values update and can be omitted outside that workflow.
+
+`GO_TEST_RACE=true` or `GO_TEST_CGO=true` requires a C compiler in the selected
+toolchain image. `oas-sandbox` sets `GO_TEST_RACE=false` in GitHub Actions while
+using `image-toolchain` v1.1.0 because that image does not include one.
+
 ## project structure
 
 ```bash

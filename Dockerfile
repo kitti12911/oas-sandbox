@@ -1,4 +1,6 @@
-FROM zot.kittiaccess.work/kitti12911/image-toolchain@sha256:47355f96a059465947c38aa956da1c4502c11d1e8f53eb2c8b3980ba58983d42 AS builder
+# check=skip=InvalidDefaultArgInFrom
+ARG TOOLCHAIN_IMAGE
+FROM ${TOOLCHAIN_IMAGE} AS builder
 
 WORKDIR /src
 
