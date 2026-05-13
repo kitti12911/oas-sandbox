@@ -40,17 +40,19 @@ Optional:
 reusable CI entrypoints live in `scripts/ci/` so GitHub Actions and GitLab CI
 can call the same commands with provider-specific orchestration around them.
 
-| command                                    | purpose                            |
-| ------------------------------------------ | ---------------------------------- |
-| `./scripts/ci/generate-code.sh`            | generate protobuf and PATCH code   |
-| `./scripts/ci/go-lint.sh`                  | run `go vet` and `golangci-lint`   |
-| `./scripts/ci/go-test.sh`                  | run tests with filtered coverage   |
-| `./scripts/ci/markdownlint.sh`             | run Markdown linting               |
-| `./scripts/ci/security-scan.sh`            | run `govulncheck` and Semgrep      |
-| `./scripts/ci/supply-chain-scan.sh`        | run Trivy and Gitleaks             |
-| `./scripts/ci/semantic-release-plan.sh`    | preview the next semantic release  |
-| `./scripts/ci/semantic-release-publish.sh` | publish the semantic release       |
-| `./scripts/ci/update-helm-image-values.sh` | update homelab GitOps image values |
+| command                                            | purpose                                       |
+| -------------------------------------------------- | --------------------------------------------- |
+| `./scripts/ci/generate-code.sh`                    | generate protobuf and PATCH code              |
+| `./scripts/ci/openapi-report.sh`                   | compare and report OpenAPI changes            |
+| `./scripts/ci/go-lint.sh`                          | run `go vet` and `golangci-lint`              |
+| `./scripts/ci/go-test.sh`                          | run tests with filtered coverage              |
+| `./scripts/ci/markdownlint.sh`                     | run Markdown linting                          |
+| `./scripts/ci/security-scan.sh`                    | run `govulncheck` and Semgrep                 |
+| `./scripts/ci/supply-chain-scan.sh`                | run Trivy and Gitleaks                        |
+| `./scripts/ci/semantic-release-plan.sh`            | preview the next semantic release             |
+| `./scripts/ci/semantic-release-publish.sh`         | publish the semantic release                  |
+| `./scripts/ci/fast-forward-prerelease-branches.sh` | fast-forward `uat` and `develop` after `main` |
+| `./scripts/ci/update-helm-image-values.sh`         | update homelab GitOps image values            |
 
 GitHub Actions uses `TOOLCHAIN_REGISTRY` and `TOOLCHAIN_IMAGE_NAMESPACE` to
 resolve shared CI toolchain images, and `IMAGE_REGISTRY` plus `IMAGE_NAMESPACE`
@@ -58,6 +60,8 @@ to publish the application image. GitLab should map its CI variables and image
 credentials to the same script inputs instead of duplicating command logic.
 The `homelab-devops` values update in `.github/workflows/go-ci.yml` is
 GitHub-specific homelab orchestration, not part of the portable script contract.
+The prerelease branch fast-forward helper is also GitHub-specific because it
+pushes through a GitHub App token.
 GitLab deployments can use a different project, folder layout, or deployment
 tool by calling the same `scripts/ci` build/release helpers and adding its own
 deploy job. `DEPLOY_IMAGE_REGISTRY` and `DEPLOY_IMAGE_NAMESPACE` only affect the
