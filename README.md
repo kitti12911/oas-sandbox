@@ -108,7 +108,8 @@ Important sections:
 - `logging`: slog level and trace id injection
 - `tracing`: OTLP exporter settings
 - `profiling`: Pyroscope settings
-- `user_service`: gRPC address for `grpc-sandbox`
+- `user_service`: gRPC address for `grpc-sandbox`; Kubernetes deployments should
+  point this at the headless Service so gRPC round-robin can see each pod
 
 ## generate code
 
