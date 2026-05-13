@@ -18,6 +18,7 @@ import (
 	"github.com/kitti12911/lib-util/v3/logger"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials/insecure"
 
 	userv1 "oas-sandbox/gen/grpc/user/v1"
@@ -72,11 +73,12 @@ func run() int {
 	}()
 
 	// Init gRPC clients
-	userAddr := net.JoinHostPort(cfg.UserService.Host, strconv.Itoa(cfg.UserService.Port))
+	userAddr := "dns:///" + net.JoinHostPort(cfg.UserService.Host, strconv.Itoa(cfg.UserService.Port))
 	userConn, err := grpc.NewClient(
 		userAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to connect to user service", "addr", userAddr, "error", err)
