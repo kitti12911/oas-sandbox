@@ -16,7 +16,7 @@ if [ -z "${packages}" ]; then
 	exit 0
 fi
 
-set -- go test -coverprofile="${coverage_profile}" -covermode=atomic
+set -- go test -buildvcs=false -coverprofile="${coverage_profile}" -covermode=atomic
 
 if [ "${race}" = "true" ]; then
 	set -- "$@" -race
