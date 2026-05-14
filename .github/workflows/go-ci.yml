@@ -7,7 +7,7 @@ on:
             - uat
             - main
         paths:
-            - ".releaserc.json"
+            - "release.config.cjs"
             - ".github/workflows/go-ci.yml"
             - ".github/workflows/release.yml"
             - ".golangci.yml"
@@ -24,7 +24,7 @@ on:
             - "!README.md"
     pull_request:
         paths:
-            - ".releaserc.json"
+            - "release.config.cjs"
             - ".github/workflows/go-ci.yml"
             - ".github/workflows/release.yml"
             - ".golangci.yml"

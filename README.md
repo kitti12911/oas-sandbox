@@ -56,8 +56,29 @@ can call the same commands with provider-specific orchestration around them.
 
 GitHub Actions uses `TOOLCHAIN_REGISTRY` and `TOOLCHAIN_IMAGE_NAMESPACE` to
 resolve shared CI toolchain images, and `IMAGE_REGISTRY` plus `IMAGE_NAMESPACE`
-to publish the application image. GitLab should map its CI variables and image
-credentials to the same script inputs instead of duplicating command logic.
+to publish the application image. GitLab uses full image references so the
+private mirror can point at Harbor without changing these scripts:
+
+| GitLab variable                   | Purpose                                     |
+| --------------------------------- | ------------------------------------------- |
+| `CI_IMAGE_TOOLCHAIN_IMAGE`        | Image for generation, Go lint/test, builds  |
+| `CI_SECURITY_TOOLCHAIN_IMAGE`     | Image for `govulncheck` and Semgrep         |
+| `CI_SUPPLY_CHAIN_TOOLCHAIN_IMAGE` | Image for Trivy and Gitleaks                |
+| `CI_RELEASE_TOOLCHAIN_IMAGE`      | Image for Markdownlint and semantic-release |
+| `CI_DOCKER_CLI_IMAGE`             | Docker CLI image for build/publish jobs     |
+| `CI_DOCKER_DIND_IMAGE`            | Docker-in-Docker service image              |
+| `CI_TRIVY_RUNNER_IMAGE`           | Optional Trivy runner image override        |
+| `IMAGE_REGISTRY`                  | Target application image registry           |
+| `IMAGE_NAMESPACE`                 | Target application image namespace          |
+| `GITLAB_AMD64_RUNNER_TAG`         | Optional runner tag override                |
+| `GL_TOKEN` or `GITLAB_TOKEN`      | GitLab semantic-release API/write token     |
+
+| GitLab secret                        | Purpose                  |
+| ------------------------------------ | ------------------------ |
+| `IMAGE_REGISTRY_USERNAME`            | Target registry username |
+| `IMAGE_REGISTRY_PASSWORD`            | Target registry password |
+| `COSIGN_PRIVATE_KEY` or `COSIGN_KEY` | Image signing key        |
+
 The `homelab-devops` values update in `.github/workflows/go-ci.yml` is
 GitHub-specific homelab orchestration, not part of the portable script contract.
 The prerelease branch fast-forward helper is also GitHub-specific because it
