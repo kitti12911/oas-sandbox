@@ -40,7 +40,7 @@ jobs:
         name: Plan Semantic Release
         runs-on: ubuntu-latest
         container:
-            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/release-toolchain@sha256:aaba512b7e0bce0b866ce97ff6eb3cb27b7a58ba4cb4995c9fa64af571850193
+            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
             credentials:
                 username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
                 password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
@@ -90,7 +90,7 @@ jobs:
             IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
             IMAGE_REF: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAMESPACE }}/oas-sandbox
             STAGING_IMAGE_REF: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAMESPACE }}/oas-sandbox:staging-${{ inputs.release_sha }}-${{ matrix.arch }}
-            TOOLCHAIN_IMAGE: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/image-toolchain@sha256:55e03f1a59c20fbd37a400a95924be84fbd1814db2bf511c4fdb3fdefbcf6b2c
+            TOOLCHAIN_IMAGE: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -136,7 +136,7 @@ jobs:
         name: Publish Semantic Release
         runs-on: ubuntu-latest
         container:
-            image: ${{ vars.TOOLCHAIN_REGISTRY }}/${{ vars.TOOLCHAIN_IMAGE_NAMESPACE }}/release-toolchain@sha256:aaba512b7e0bce0b866ce97ff6eb3cb27b7a58ba4cb4995c9fa64af571850193
+            image: ${{ vars.RELEASE_TOOLCHAIN_IMAGE }}
             credentials:
                 username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
                 password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
