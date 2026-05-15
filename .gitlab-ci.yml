@@ -300,7 +300,6 @@ publish:amd64:
                 echo "No semantic release published; skipping image publish."
                 exit 0
             fi
-        - apk add --no-cache cosign
         - export REGISTRY="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}"
         - export IMAGE_NAMESPACE="${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}"
         - export IMAGE_REF="${REGISTRY}/${IMAGE_NAMESPACE}/${IMAGE_NAME}"
@@ -313,5 +312,3 @@ publish:amd64:
         - REGISTRY_USERNAME="${IMAGE_REGISTRY_USERNAME}" REGISTRY_PASSWORD="${IMAGE_REGISTRY_PASSWORD}" ./scripts/ci/login-registry.sh
         - ./scripts/ci/promote-image.sh
         - RELEASE_SHA="${CI_COMMIT_SHA}" RELEASE_BRANCH="${CI_COMMIT_BRANCH}" ./scripts/ci/publish-manifest.sh
-        - CI_OUTPUT_FILE=".image.outputs" ./scripts/ci/resolve-image-digests.sh
-        - ./scripts/ci/sign-image.sh
