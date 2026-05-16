@@ -119,7 +119,7 @@ jobs:
               env:
                   GO_TEST_RACE: false
                   # Keep in sync with GO_COVERAGE_EXCLUDE_REGEX in the Makefile
-                  # so local `make ci-test` and CI report the same %.
+                  # so local `make cov` and CI report the same %.
                   GO_COVERAGE_EXCLUDE_REGEX: "/cmd/|/api\\.go:|/internal/server/http\\.go:|/internal/api/system/|/internal/api/deps\\.go:|/internal/api/helpers\\.go:"
 
             - name: Show coverage
