@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 "${script_dir}/require-env.sh" VALUES_FILE RELEASE_TAG IMAGE_DIGEST
 
 if [ ! -f "${VALUES_FILE}" ]; then
