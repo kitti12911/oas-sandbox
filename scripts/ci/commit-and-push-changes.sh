@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 "${script_dir}/require-env.sh" GIT_WORKDIR GIT_ADD_PATH GIT_COMMIT_MESSAGE
 
 push_remote="${GIT_PUSH_REMOTE:-origin}"

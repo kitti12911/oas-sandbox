@@ -220,7 +220,7 @@ func generate(path string, patch patchType) error {
 	fmt.Fprintf(&buf, "\tmsg := &%s.%s{}\n", patch.protoAlias, patch.protoType)
 	buf.WriteString("\tmask := &fieldmaskpb.FieldMask{}\n\n")
 	for _, f := range patch.fields {
-		writeField(&buf, patch.protoAlias, f)
+		writeField(&buf, patch.protoAlias, f, f.valuePath)
 	}
 	buf.WriteString("\n\treturn msg, mask\n}\n")
 
@@ -231,62 +231,77 @@ func generate(path string, patch patchType) error {
 	return os.WriteFile(path, formatted, 0o644)
 }
 
-func writeField(buf *bytes.Buffer, protoAlias string, f field) {
-	fmt.Fprintf(buf, "\tif %s.Set {\n", f.valuePath)
+// writeField / writeNestedField take valueExpr: the Go expression for this
+// field's Patch[T] wrapper. At the top level it is the full input.Body.X chain,
+// but each nested struct binds its .Value to a short local and rebases its
+// children onto it, so deeply-nested code reads `addr.City` rather than
+// `input.Body.Profile.Value.Address.Value.City` repeated on every line.
+func writeField(buf *bytes.Buffer, protoAlias string, f field, valueExpr string) {
+	fmt.Fprintf(buf, "\tif %s.Set {\n", valueExpr)
 	if len(f.nested) > 0 {
-		fmt.Fprintf(buf, "\t\tif %s.Null {\n", f.valuePath)
+		fmt.Fprintf(buf, "\t\tif %s.Null {\n", valueExpr)
 		fmt.Fprintf(buf, "\t\t\tmask.Paths = append(mask.Paths, %q)\n", f.maskPath)
 		buf.WriteString("\t\t} else {\n")
 		if f.protoType != "" {
 			fmt.Fprintf(buf, "\t\t\t%s = &%s.%s{}\n", f.protoPath, protoAlias, f.protoType)
 		}
+		local := localName(f.goName)
+		fmt.Fprintf(buf, "\t\t\t%s := %s.Value\n", local, valueExpr)
 		for _, nested := range f.nested {
-			writeNestedField(buf, protoAlias, nested, 3)
+			writeNestedField(buf, protoAlias, nested, 3, local+"."+nested.goName)
 		}
 		buf.WriteString("\t\t}\n")
 	} else {
-		fmt.Fprintf(buf, "\t\tif !%s.Null {\n", f.valuePath)
-		writeAssign(buf, f, 3)
+		fmt.Fprintf(buf, "\t\tif !%s.Null {\n", valueExpr)
+		writeAssign(buf, f, 3, valueExpr)
 		buf.WriteString("\t\t}\n")
 		fmt.Fprintf(buf, "\t\tmask.Paths = append(mask.Paths, %q)\n", f.maskPath)
 	}
 	buf.WriteString("\t}\n")
 }
 
-func writeNestedField(buf *bytes.Buffer, protoAlias string, f field, indent int) {
+func writeNestedField(buf *bytes.Buffer, protoAlias string, f field, indent int, valueExpr string) {
 	t := strings.Repeat("\t", indent)
-	fmt.Fprintf(buf, "%sif %s.Set {\n", t, f.valuePath)
+	fmt.Fprintf(buf, "%sif %s.Set {\n", t, valueExpr)
 	if len(f.nested) > 0 {
-		fmt.Fprintf(buf, "%s\tif %s.Null {\n", t, f.valuePath)
+		fmt.Fprintf(buf, "%s\tif %s.Null {\n", t, valueExpr)
 		fmt.Fprintf(buf, "%s\t\tmask.Paths = append(mask.Paths, %q)\n", t, f.maskPath)
 		fmt.Fprintf(buf, "%s\t} else {\n", t)
 		if f.protoType != "" {
 			fmt.Fprintf(buf, "%s\t\t%s = &%s.%s{}\n", t, f.protoPath, protoAlias, f.protoType)
 		}
+		local := localName(f.goName)
+		fmt.Fprintf(buf, "%s\t\t%s := %s.Value\n", t, local, valueExpr)
 		for _, nested := range f.nested {
-			writeNestedField(buf, protoAlias, nested, indent+2)
+			writeNestedField(buf, protoAlias, nested, indent+2, local+"."+nested.goName)
 		}
 		fmt.Fprintf(buf, "%s\t}\n", t)
 	} else {
-		fmt.Fprintf(buf, "%s\tif !%s.Null {\n", t, f.valuePath)
-		writeAssign(buf, f, indent+2)
+		fmt.Fprintf(buf, "%s\tif !%s.Null {\n", t, valueExpr)
+		writeAssign(buf, f, indent+2, valueExpr)
 		fmt.Fprintf(buf, "%s\t}\n", t)
 		fmt.Fprintf(buf, "%s\tmask.Paths = append(mask.Paths, %q)\n", t, f.maskPath)
 	}
 	fmt.Fprintf(buf, "%s}\n", t)
 }
 
-func writeAssign(buf *bytes.Buffer, f field, indent int) {
+func writeAssign(buf *bytes.Buffer, f field, indent int, valueExpr string) {
 	t := strings.Repeat("\t", indent)
-	value := f.valuePath + ".Value"
+	value := valueExpr + ".Value"
 	if f.converter != "" {
 		value = f.converter + "(" + value + ")"
 	}
 	if f.pointer {
-		fmt.Fprintf(buf, "%s%s = &%s.Value\n", t, f.protoPath, f.valuePath)
+		fmt.Fprintf(buf, "%s%s = &%s.Value\n", t, f.protoPath, valueExpr)
 		return
 	}
 	fmt.Fprintf(buf, "%s%s = %s\n", t, f.protoPath, value)
+}
+
+// localName derives a short, lower-cased local variable name for a nested
+// struct's bound .Value (Profile -> profile, Address -> address).
+func localName(goName string) string {
+	return lowerFirst(goName)
 }
 
 func findMarker(group *ast.CommentGroup) string {
