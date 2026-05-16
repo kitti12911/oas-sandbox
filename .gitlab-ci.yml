@@ -18,6 +18,9 @@ variables:
     GIT_DEPTH: "0"
     GITLAB_AMD64_RUNNER_TAG: "solution-principle.gitlab-bu8-sd"
     GO_TEST_RACE: "false"
+    # Keep in sync with GO_COVERAGE_EXCLUDE_REGEX in the Makefile so local
+    # `make ci-test` and CI report the same coverage %.
+    GO_COVERAGE_EXCLUDE_REGEX: "/cmd/|/api\\.go:|/internal/api/system/|/internal/api/deps\\.go:|/internal/api/helpers\\.go:"
     DOCKER_HOST: "tcp://docker:2375"
     DOCKER_TLS_CERTDIR: ""
     DOCKER_DRIVER: "overlay2"

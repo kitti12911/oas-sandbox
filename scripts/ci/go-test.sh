@@ -32,8 +32,17 @@ fi
 # shellcheck disable=SC2086
 env CGO_ENABLED="${cgo_enabled}" "$@" ${packages}
 
+# GO_COVERAGE_EXCLUDE_REGEX is an optional awk regex applied to the file:line
+# column of the coverage profile. Matching entries are dropped before % is
+# computed, so plumbing files (handlers, repositories, main, DB setup) can be
+# excluded and the reported coverage reflects only the logic packages worth
+# testing. The default `^$` never matches anything.
+exclude_regex="${GO_COVERAGE_EXCLUDE_REGEX:-^$}"
+
 tmp_profile="$(mktemp)"
-awk 'NR == 1 || ($1 !~ /\/gen\// && $1 !~ /(_gen|_generated)\.go:/)' "${coverage_profile}" >"${tmp_profile}"
+awk -v excl="${exclude_regex}" \
+	'NR == 1 || ($1 !~ /\/gen\// && $1 !~ /(_gen|_generated)\.go:/ && $1 !~ excl)' \
+	"${coverage_profile}" >"${tmp_profile}"
 mv "${tmp_profile}" "${coverage_profile}"
 
 go tool cover -func="${coverage_profile}" | tail -n 1
