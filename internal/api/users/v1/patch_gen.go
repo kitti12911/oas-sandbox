@@ -41,62 +41,64 @@ func patchUserPatch(input *PatchUserInput) (*userv1.User, *fieldmaskpb.FieldMask
 			mask.Paths = append(mask.Paths, "profile")
 		} else {
 			msg.Profile = &userv1.UserProfile{}
-			if input.Body.Profile.Value.FirstName.Set {
-				if !input.Body.Profile.Value.FirstName.Null {
-					msg.Profile.FirstName = &input.Body.Profile.Value.FirstName.Value
+			profile := input.Body.Profile.Value
+			if profile.FirstName.Set {
+				if !profile.FirstName.Null {
+					msg.Profile.FirstName = &profile.FirstName.Value
 				}
 				mask.Paths = append(mask.Paths, "profile.first_name")
 			}
-			if input.Body.Profile.Value.LastName.Set {
-				if !input.Body.Profile.Value.LastName.Null {
-					msg.Profile.LastName = &input.Body.Profile.Value.LastName.Value
+			if profile.LastName.Set {
+				if !profile.LastName.Null {
+					msg.Profile.LastName = &profile.LastName.Value
 				}
 				mask.Paths = append(mask.Paths, "profile.last_name")
 			}
-			if input.Body.Profile.Value.PhoneNumber.Set {
-				if !input.Body.Profile.Value.PhoneNumber.Null {
-					msg.Profile.PhoneNumber = &input.Body.Profile.Value.PhoneNumber.Value
+			if profile.PhoneNumber.Set {
+				if !profile.PhoneNumber.Null {
+					msg.Profile.PhoneNumber = &profile.PhoneNumber.Value
 				}
 				mask.Paths = append(mask.Paths, "profile.phone_number")
 			}
-			if input.Body.Profile.Value.Address.Set {
-				if input.Body.Profile.Value.Address.Null {
+			if profile.Address.Set {
+				if profile.Address.Null {
 					mask.Paths = append(mask.Paths, "profile.address")
 				} else {
 					msg.Profile.Address = &userv1.UserAddress{}
-					if input.Body.Profile.Value.Address.Value.Line1.Set {
-						if !input.Body.Profile.Value.Address.Value.Line1.Null {
-							msg.Profile.Address.Line1 = &input.Body.Profile.Value.Address.Value.Line1.Value
+					address := profile.Address.Value
+					if address.Line1.Set {
+						if !address.Line1.Null {
+							msg.Profile.Address.Line1 = &address.Line1.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.line1")
 					}
-					if input.Body.Profile.Value.Address.Value.Line2.Set {
-						if !input.Body.Profile.Value.Address.Value.Line2.Null {
-							msg.Profile.Address.Line2 = &input.Body.Profile.Value.Address.Value.Line2.Value
+					if address.Line2.Set {
+						if !address.Line2.Null {
+							msg.Profile.Address.Line2 = &address.Line2.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.line2")
 					}
-					if input.Body.Profile.Value.Address.Value.City.Set {
-						if !input.Body.Profile.Value.Address.Value.City.Null {
-							msg.Profile.Address.City = &input.Body.Profile.Value.Address.Value.City.Value
+					if address.City.Set {
+						if !address.City.Null {
+							msg.Profile.Address.City = &address.City.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.city")
 					}
-					if input.Body.Profile.Value.Address.Value.State.Set {
-						if !input.Body.Profile.Value.Address.Value.State.Null {
-							msg.Profile.Address.State = &input.Body.Profile.Value.Address.Value.State.Value
+					if address.State.Set {
+						if !address.State.Null {
+							msg.Profile.Address.State = &address.State.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.state")
 					}
-					if input.Body.Profile.Value.Address.Value.PostalCode.Set {
-						if !input.Body.Profile.Value.Address.Value.PostalCode.Null {
-							msg.Profile.Address.PostalCode = &input.Body.Profile.Value.Address.Value.PostalCode.Value
+					if address.PostalCode.Set {
+						if !address.PostalCode.Null {
+							msg.Profile.Address.PostalCode = &address.PostalCode.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.postal_code")
 					}
-					if input.Body.Profile.Value.Address.Value.CountryCode.Set {
-						if !input.Body.Profile.Value.Address.Value.CountryCode.Null {
-							msg.Profile.Address.CountryCode = &input.Body.Profile.Value.Address.Value.CountryCode.Value
+					if address.CountryCode.Set {
+						if !address.CountryCode.Null {
+							msg.Profile.Address.CountryCode = &address.CountryCode.Value
 						}
 						mask.Paths = append(mask.Paths, "profile.address.country_code")
 					}
