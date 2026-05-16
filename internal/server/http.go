@@ -2,22 +2,18 @@ package server
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/danielgtaylor/huma/v2/yaml"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel/trace"
 
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 	workerv1 "oas-sandbox/gen/grpc/worker/v1"
@@ -25,6 +21,7 @@ import (
 	"oas-sandbox/internal/api/system"
 	usersv1 "oas-sandbox/internal/api/users/v1"
 	workerv1api "oas-sandbox/internal/api/worker/v1"
+	"oas-sandbox/internal/server/middleware"
 )
 
 type HTTPServer struct {
@@ -44,9 +41,9 @@ func NewHTTPServer(
 	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
 
 	handler := otelhttp.NewHandler(
-		accessLogHandler(gzipHandler(recoverHandler(mux))),
+		middleware.AccessLog(middleware.Gzip(middleware.Recover(mux))),
 		serviceName,
-		otelhttp.WithFilter(traceableRequest),
+		otelhttp.WithFilter(middleware.TraceableRequest),
 	)
 	return &HTTPServer{
 		server: &http.Server{
@@ -55,169 +52,6 @@ func NewHTTPServer(
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}
-}
-
-func accessLogHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !traceableRequest(r) {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		start := time.Now()
-		recorder := &accessLogResponseWriter{
-			ResponseWriter: w,
-			status:         http.StatusOK,
-		}
-
-		next.ServeHTTP(recorder, r)
-
-		attrs := []any{
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", recorder.status,
-			"duration", time.Since(start),
-			"bytes", recorder.bytes,
-		}
-		if route := r.Pattern; route != "" {
-			attrs = append(attrs, "route", route)
-		}
-		if traceID := extractTraceID(r.Context()); traceID != "" {
-			attrs = append(attrs, "trace_id", traceID)
-		}
-
-		switch {
-		case recorder.status >= http.StatusInternalServerError:
-			slog.ErrorContext(r.Context(), "HTTP request completed", attrs...)
-		case recorder.status >= http.StatusBadRequest:
-			slog.WarnContext(r.Context(), "HTTP request completed", attrs...)
-		default:
-			slog.InfoContext(r.Context(), "HTTP request completed", attrs...)
-		}
-	})
-}
-
-type accessLogResponseWriter struct {
-	http.ResponseWriter
-	status      int
-	bytes       int
-	wroteHeader bool
-}
-
-func (w *accessLogResponseWriter) WriteHeader(status int) {
-	if w.wroteHeader {
-		return
-	}
-	w.status = status
-	w.wroteHeader = true
-	w.ResponseWriter.WriteHeader(status)
-}
-
-func (w *accessLogResponseWriter) Write(body []byte) (int, error) {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
-	}
-
-	n, err := w.ResponseWriter.Write(body)
-	w.bytes += n
-	return n, err
-}
-
-func recoverHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				slog.ErrorContext(r.Context(), "HTTP request panic", "error", recovered)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-		}()
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-type gzipResponseWriter struct {
-	http.ResponseWriter
-	writer      *gzip.Writer
-	wroteHeader bool
-	gzipEnabled bool
-}
-
-func (grw *gzipResponseWriter) WriteHeader(status int) {
-	if grw.wroteHeader {
-		return
-	}
-
-	grw.wroteHeader = true
-	if status >= http.StatusOK && status < http.StatusMultipleChoices {
-		grw.Header().Del("Content-Length")
-		grw.Header().Set("Content-Encoding", "gzip")
-		grw.writer = gzipPool.Get().(*gzip.Writer)
-		grw.writer.Reset(grw.ResponseWriter)
-		grw.gzipEnabled = true
-	}
-
-	grw.ResponseWriter.WriteHeader(status)
-}
-
-func (grw *gzipResponseWriter) Write(b []byte) (int, error) {
-	if !grw.wroteHeader {
-		grw.WriteHeader(http.StatusOK)
-	}
-	if !grw.gzipEnabled {
-		return grw.ResponseWriter.Write(b)
-	}
-	return grw.writer.Write(b)
-}
-
-func (grw *gzipResponseWriter) Close() error {
-	if grw.writer == nil {
-		return nil
-	}
-
-	err := grw.writer.Close()
-	gzipPool.Put(grw.writer)
-	grw.writer = nil
-	return err
-}
-
-var gzipPool = sync.Pool{
-	New: func() any {
-		return gzip.NewWriter(io.Discard)
-	},
-}
-
-func gzipHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		w.Header().Add("Vary", "Accept-Encoding")
-
-		grw := &gzipResponseWriter{ResponseWriter: w}
-		defer func() {
-			if err := grw.Close(); err != nil {
-				slog.WarnContext(r.Context(), "close gzip response writer", "error", err)
-			}
-		}()
-
-		next.ServeHTTP(grw, r)
-	})
-}
-
-func traceableRequest(r *http.Request) bool {
-	return r.URL.Path != "/health"
-}
-
-func extractTraceID(ctx context.Context) string {
-	span := trace.SpanFromContext(ctx)
-	if span.SpanContext().IsValid() {
-		return span.SpanContext().TraceID().String()
-	}
-
-	return ""
 }
 
 func NewAPI(
