@@ -37,9 +37,6 @@ format: fmt pretty
 test:
 	env CGO_ENABLED=1 go test --race -v ./...
 
-ci-test:
-	GO_COVERAGE_EXCLUDE_REGEX='$(GO_COVERAGE_EXCLUDE_REGEX)' ./scripts/ci/go-test.sh
-
 cov:
 	GO_COVERAGE_EXCLUDE_REGEX='$(GO_COVERAGE_EXCLUDE_REGEX)' ./scripts/ci/go-test.sh
 	go tool cover -html=coverage.out
