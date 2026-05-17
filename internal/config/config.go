@@ -14,6 +14,7 @@ type Config struct {
 	Tracing     tracing.Config   `mapstructure:"tracing"`
 	Profiling   profiling.Config `mapstructure:"profiling"`
 	UserService ServiceAddr      `mapstructure:"user_service" validate:"required"`
+	SagaService ServiceAddr      `mapstructure:"saga_service" validate:"required"`
 }
 
 type Service struct {
@@ -23,6 +24,6 @@ type Service struct {
 }
 
 type ServiceAddr struct {
-	Host string `mapstructure:"host" env:"USER_SERVICE_HOST" validate:"required"`
-	Port int    `mapstructure:"port" env:"USER_SERVICE_PORT" validate:"required,gte=1,lte=65535"`
+	Host string `mapstructure:"host" validate:"required"`
+	Port int    `mapstructure:"port" validate:"required,gte=1,lte=65535"`
 }
