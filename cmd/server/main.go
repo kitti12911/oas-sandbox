@@ -21,6 +21,7 @@ import (
 	_ "google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials/insecure"
 
+	sagav1 "oas-sandbox/gen/grpc/saga/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 	"oas-sandbox/internal/config"
@@ -92,12 +93,33 @@ func run() int {
 
 	slog.InfoContext(ctx, "connected to user service", "addr", userAddr)
 
+	// Init saga gRPC client
+	sagaAddr := "dns:///" + net.JoinHostPort(cfg.SagaService.Host, strconv.Itoa(cfg.SagaService.Port))
+	sagaConn, err := grpc.NewClient(
+		sagaAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to connect to saga service", "addr", sagaAddr, "error", err)
+		return 1
+	}
+	defer func() {
+		if closeErr := sagaConn.Close(); closeErr != nil {
+			slog.ErrorContext(ctx, "failed to close saga service connection", "error", closeErr)
+		}
+	}()
+
+	slog.InfoContext(ctx, "connected to saga service", "addr", sagaAddr)
+
 	// Start HTTP server
 	srv := server.NewHTTPServer(
 		cfg.Service.Port,
 		cfg.Service.Name,
 		userv1.NewUserServiceClient(userConn),
 		workerv1.NewWorkerServiceClient(userConn),
+		sagav1.NewSagaServiceClient(sagaConn),
 	)
 
 	serverErr := make(chan error, 1)

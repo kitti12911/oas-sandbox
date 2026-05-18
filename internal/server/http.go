@@ -15,9 +15,11 @@ import (
 	"github.com/danielgtaylor/huma/v2/yaml"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	sagav1 "oas-sandbox/gen/grpc/saga/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 	"oas-sandbox/internal/api"
+	paymentsv1 "oas-sandbox/internal/api/payments/v1"
 	"oas-sandbox/internal/api/system"
 	usersv1 "oas-sandbox/internal/api/users/v1"
 	workerv1api "oas-sandbox/internal/api/worker/v1"
@@ -33,9 +35,10 @@ func NewHTTPServer(
 	serviceName string,
 	userClient userv1.UserServiceClient,
 	workerClient workerv1.WorkerServiceClient,
+	sagaClient sagav1.SagaServiceClient,
 ) *HTTPServer {
 	mux := http.NewServeMux()
-	humaAPI := NewAPI(mux, serviceName, userClient, workerClient)
+	humaAPI := NewAPI(mux, serviceName, userClient, workerClient, sagaClient)
 	registerOpenAPISpec(mux, humaAPI)
 	registerSwaggerUIAssets(mux)
 	registerDocs(mux, humaAPI.OpenAPI().Info.Title)
@@ -59,6 +62,7 @@ func NewAPI(
 	serviceName string,
 	userClient userv1.UserServiceClient,
 	workerClient workerv1.WorkerServiceClient,
+	sagaClient sagav1.SagaServiceClient,
 ) huma.API {
 	humaConfig := huma.DefaultConfig("OAS Sandbox", "0.1.0")
 	humaConfig.Info.Description = "OpenAPI sandbox for homelab API experiments."
@@ -66,6 +70,7 @@ func NewAPI(
 		{Name: api.TagSystem, Description: "Service health and operational endpoints."},
 		{Name: api.TagUsers, Description: "User resource endpoints."},
 		{Name: api.TagWorker, Description: "Background worker job endpoints."},
+		{Name: api.TagPayments, Description: "Payment saga HTTP front door."},
 	}
 	humaConfig.DocsPath = ""
 	humaConfig.OpenAPIPath = ""
@@ -75,6 +80,7 @@ func NewAPI(
 		ServiceName:  serviceName,
 		UserClient:   userClient,
 		WorkerClient: workerClient,
+		SagaClient:   sagaClient,
 	})
 
 	return humaAPI
@@ -97,6 +103,7 @@ func registerAPI(h huma.API, deps api.Deps) {
 	v1 := huma.NewGroup(h, "/v1")
 	usersv1.Register(v1, deps)
 	workerv1api.Register(v1, deps)
+	paymentsv1.Register(v1, deps)
 }
 
 func registerOpenAPISpec(mux *http.ServeMux, humaAPI huma.API) {

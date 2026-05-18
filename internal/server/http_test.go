@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	commonv1 "oas-sandbox/gen/grpc/common/v1"
+	sagav1 "oas-sandbox/gen/grpc/saga/v1"
 	userv1 "oas-sandbox/gen/grpc/user/v1"
 	workerv1 "oas-sandbox/gen/grpc/worker/v1"
 )
@@ -28,7 +29,7 @@ func newRequest(method, target string, body io.Reader) *http.Request {
 }
 
 func newTestHTTPServer(userClient userv1.UserServiceClient) *HTTPServer {
-	return NewHTTPServer(0, "oas-sandbox", userClient, fakeWorkerClient{})
+	return NewHTTPServer(0, "oas-sandbox", userClient, fakeWorkerClient{}, fakeSagaClient{})
 }
 
 func TestHTTPServerHealth(t *testing.T) {
@@ -437,7 +438,7 @@ func TestPatchUserEndpointRejectsEmptyBody(t *testing.T) {
 
 func TestSubmitWorkerJobEndpoint(t *testing.T) {
 	var got *workerv1.SubmitJobRequest
-	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{}, fakeWorkerClient{submitReq: &got})
+	srv := NewHTTPServer(0, "oas-sandbox", fakeUserClient{}, fakeWorkerClient{submitReq: &got}, fakeSagaClient{})
 	body := strings.NewReader(`{
 		"id": "job-1",
 		"type": "debug.print",
@@ -611,4 +612,22 @@ func (c fakeWorkerClient) SubmitJob(
 	}
 
 	return &workerv1.SubmitJobResponse{Id: req.GetJob().GetId()}, nil
+}
+
+type fakeSagaClient struct{}
+
+func (fakeSagaClient) StartPayment(
+	_ context.Context,
+	req *sagav1.StartPaymentRequest,
+	_ ...grpc.CallOption,
+) (*sagav1.StartPaymentResponse, error) {
+	return &sagav1.StartPaymentResponse{SagaId: req.GetIdempotencyKey(), State: "RUNNING"}, nil
+}
+
+func (fakeSagaClient) GetSaga(
+	_ context.Context,
+	req *sagav1.GetSagaRequest,
+	_ ...grpc.CallOption,
+) (*sagav1.GetSagaResponse, error) {
+	return &sagav1.GetSagaResponse{SagaId: req.GetSagaId(), State: "COMPLETED"}, nil
 }
