@@ -13,7 +13,7 @@ func main() {
 }
 
 func run() int {
-	api := server.NewAPI(http.NewServeMux(), "oas-sandbox", nil, nil)
+	api := server.NewAPI(http.NewServeMux(), "oas-sandbox", nil, nil, nil)
 	body, err := api.OpenAPI().YAML()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "generate OpenAPI: %v\n", err)

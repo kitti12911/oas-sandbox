@@ -29,7 +29,7 @@ generate_openapi() {
 	if grep -q '^inputs:' buf.gen.yaml; then
 		buf generate
 	else
-		buf generate https://github.com/kitti12911/proto-sandbox.git --path common/v1 --path user/v1
+		buf generate "https://github.com/kitti12911/proto-sandbox.git#tag=v1.9.0" --path common/v1 --path user/v1
 	fi
 	go run ./cmd/gen-patch
 	make gen-openapi >"${output_file}"
