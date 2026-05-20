@@ -4,8 +4,8 @@ go 1.26.3
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.37.3
-	github.com/kitti12911/lib-monitor v1.12.0
-	github.com/kitti12911/lib-util/v3 v3.15.0
+	github.com/kitti12911/lib-monitor v1.12.1
+	github.com/kitti12911/lib-util/v3 v3.15.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
