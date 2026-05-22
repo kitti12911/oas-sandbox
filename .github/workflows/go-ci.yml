@@ -53,9 +53,6 @@ jobs:
         runs-on: ubuntu-latest
         container:
             image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -78,9 +75,6 @@ jobs:
             - generate
         container:
             image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -101,9 +95,6 @@ jobs:
             - generate
         container:
             image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -139,9 +130,6 @@ jobs:
         runs-on: ubuntu-latest
         container:
             image: ${{ vars.IMAGE_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         env:
             BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
             REPORT_MODE: ${{ github.event_name == 'pull_request' && 'breaking' || 'main' }}
@@ -167,9 +155,6 @@ jobs:
             - generate
         container:
             image: ${{ vars.SECURITY_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -190,9 +175,6 @@ jobs:
         runs-on: ubuntu-latest
         container:
             image: ${{ vars.SUPPLY_CHAIN_TOOLCHAIN_IMAGE }}
-            credentials:
-                username: ${{ secrets.TOOLCHAIN_REGISTRY_USERNAME }}
-                password: ${{ secrets.TOOLCHAIN_REGISTRY_PASSWORD }}
         steps:
             # actions/checkout v6.0.2
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
