@@ -22,20 +22,20 @@ func TestInt32FromInt(t *testing.T) {
 	assert.Equal(t, int32(math.MinInt32), int32FromInt(math.MinInt32-1))
 }
 
-func TestStatusFromProto(t *testing.T) {
+func TestUserStatusFromProto(t *testing.T) {
 	t.Parallel()
 	tests := map[userv1.UserStatus]string{
 		userv1.UserStatus_USER_STATUS_ACTIVE:      "active",
 		userv1.UserStatus_USER_STATUS_DISABLED:    "disabled",
 		userv1.UserStatus_USER_STATUS_PENDING:     "pending",
-		userv1.UserStatus_USER_STATUS_UNSPECIFIED: "unspecified",
+		userv1.UserStatus_USER_STATUS_UNSPECIFIED: "",
 	}
 	for in, want := range tests {
-		assert.Equal(t, want, statusFromProto(in))
+		assert.Equal(t, want, userStatusFromProto(in))
 	}
 }
 
-func TestStatusToProto(t *testing.T) {
+func TestToProtoUserStatus(t *testing.T) {
 	t.Parallel()
 	tests := map[string]userv1.UserStatus{
 		"active":   userv1.UserStatus_USER_STATUS_ACTIVE,
@@ -45,19 +45,19 @@ func TestStatusToProto(t *testing.T) {
 		"unknown":  userv1.UserStatus_USER_STATUS_UNSPECIFIED,
 	}
 	for in, want := range tests {
-		assert.Equal(t, want, statusToProto(in))
+		assert.Equal(t, want, toProtoUserStatus(in))
 	}
 }
 
-func TestUserListFromProtoNil(t *testing.T) {
+func TestListUsersOutputFromProtoNil(t *testing.T) {
 	t.Parallel()
-	got := userListFromProto(nil)
+	got := listUsersOutputFromProto(nil)
 	assert.NotNil(t, got)
 	assert.Empty(t, got.Body.Users)
 	assert.Equal(t, 0, got.Body.Page)
 }
 
-func TestUserListFromProtoCopiesPaginationAndUsers(t *testing.T) {
+func TestListUsersOutputFromProtoCopiesPaginationAndUsers(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	resp := &userv1.ListUsersResponse{
@@ -66,7 +66,7 @@ func TestUserListFromProtoCopiesPaginationAndUsers(t *testing.T) {
 		},
 		Pagination: &commonv1.PaginationResponse{Page: 2, PageSize: 10, TotalPages: 3, TotalSize: 25},
 	}
-	got := userListFromProto(resp)
+	got := listUsersOutputFromProto(resp)
 	assert.Len(t, got.Body.Users, 1)
 	assert.Equal(t, "u1", got.Body.Users[0].ID)
 	assert.Equal(t, 2, got.Body.Page)
@@ -105,7 +105,7 @@ func TestUserFromProtoCopiesFields(t *testing.T) {
 	assert.Equal(t, "Bangkok", *got.Profile.Address.City)
 }
 
-func TestUserToCreateAndUpdateProto(t *testing.T) {
+func TestUserToProto(t *testing.T) {
 	t.Parallel()
 	req := CreateUserRequest{
 		Email:    "kit@example.com",
@@ -117,21 +117,17 @@ func TestUserToCreateAndUpdateProto(t *testing.T) {
 		},
 	}
 
-	create := userToCreateProto(&CreateUserInput{Body: req})
-	assert.Equal(t, "kit@example.com", create.Email)
-	assert.Equal(t, userv1.UserStatus_USER_STATUS_PENDING, create.Status)
-	assert.Equal(t, "Kit", *create.Profile.FirstName)
-	assert.Equal(t, "Bangkok", *create.Profile.Address.City)
-
-	update := userToUpdateProto(&UpdateUserInput{ID: "u1", Body: req})
-	assert.Equal(t, "kit@example.com", update.Email)
-	assert.Equal(t, userv1.UserStatus_USER_STATUS_PENDING, update.Status)
+	got := userToProto(req)
+	assert.Equal(t, "kit@example.com", got.Email)
+	assert.Equal(t, userv1.UserStatus_USER_STATUS_PENDING, got.Status)
+	assert.Equal(t, "Kit", *got.Profile.FirstName)
+	assert.Equal(t, "Bangkok", *got.Profile.Address.City)
 }
 
-func TestProfileAndAddressToCreateProtoNil(t *testing.T) {
+func TestProfileAndAddressToProtoNil(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, profileToCreateProto(nil))
-	assert.Nil(t, addressToCreateProto(nil))
+	assert.Nil(t, profileToProto(nil))
+	assert.Nil(t, addressToProto(nil))
 }
 
 func TestProfileAndAddressFromProtoNil(t *testing.T) {
@@ -159,12 +155,21 @@ func TestProfileAndAddressFromProtoCopiesFields(t *testing.T) {
 	assert.Equal(t, "BKK", *profile.Address.City)
 }
 
-func TestCreateUserFromProto(t *testing.T) {
+func TestCreateUserOutputFromProto(t *testing.T) {
 	t.Parallel()
-	out := createUserFromProto(nil)
+	out := createUserOutputFromProto(nil)
 	assert.Equal(t, "", out.Body.ID)
 
-	out = createUserFromProto(&userv1.CreateUserResponse{Id: "u1"})
+	out = createUserOutputFromProto(&userv1.CreateUserResponse{Id: "u1"})
+	assert.Equal(t, "u1", out.Body.ID)
+}
+
+func TestGetUserOutputFromProto(t *testing.T) {
+	t.Parallel()
+	out := getUserOutputFromProto(nil)
+	assert.Equal(t, User{}, out.Body)
+
+	out = getUserOutputFromProto(&userv1.GetUserResponse{User: &userv1.User{Id: "u1"}})
 	assert.Equal(t, "u1", out.Body.ID)
 }
 
@@ -175,29 +180,28 @@ func TestPaginationFromInput(t *testing.T) {
 	assert.Equal(t, int32(25), got.PageSize)
 }
 
-func TestFiltersFromInputEmpty(t *testing.T) {
+func TestFilterFromInputEmpty(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, filtersFromInput(&ListUsersInput{}))
+	assert.Nil(t, filterFromInput(&ListUsersInput{}))
 }
 
-func TestFiltersFromInputSingleValue(t *testing.T) {
+func TestFilterFromInputSingleValue(t *testing.T) {
 	t.Parallel()
-	got := filtersFromInput(&ListUsersInput{
+	got := filterFromInput(&ListUsersInput{
 		FilterCol: "username", FilterOp: "like_ci", FilterVal: "kit",
 	})
-	assert.Len(t, got, 1)
-	assert.Equal(t, "username", got[0].Col)
-	assert.Equal(t, "kit", got[0].Val)
-	assert.Empty(t, got[0].Vals)
+	assert.Equal(t, "username", got.Col)
+	assert.Equal(t, "kit", got.Val)
+	assert.Empty(t, got.Vals)
+	assert.Empty(t, got.Filters)
 }
 
-func TestFiltersFromInputMultipleValues(t *testing.T) {
+func TestFilterFromInputMultipleValues(t *testing.T) {
 	t.Parallel()
-	got := filtersFromInput(&ListUsersInput{
+	got := filterFromInput(&ListUsersInput{
 		FilterCol: "status", FilterOp: "in", FilterVals: "active,pending",
 	})
-	assert.Len(t, got, 1)
-	assert.Equal(t, []string{"active", "pending"}, got[0].Vals)
+	assert.Equal(t, []string{"active", "pending"}, got.Vals)
 }
 
 func TestOrderByFromInput(t *testing.T) {
@@ -219,22 +223,61 @@ func TestPaginationFromAdvancedInput(t *testing.T) {
 	assert.Equal(t, int32(50), got.PageSize)
 }
 
-func TestFiltersFromAdvancedInput(t *testing.T) {
+func TestFilterFromAdvancedInput(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, filtersFromAdvancedInput(&AdvancedListUsersInput{}))
+	assert.Nil(t, filterFromAdvancedInput(&AdvancedListUsersInput{}))
 
-	got := filtersFromAdvancedInput(&AdvancedListUsersInput{
+	// leaf
+	got := filterFromAdvancedInput(&AdvancedListUsersInput{
 		Body: AdvancedListUsersRequest{
-			Filters: []Filter{
-				{Col: "username", Op: "like_ci", Val: "kit"},
-				{Col: "", Op: "exact", Val: "skip-me"}, // empty Col → skipped
-				{Col: "status", Op: "in", Vals: []string{"active", "pending"}},
+			Filter: &Filter{Col: "username", Op: "like_ci", Val: "kit"},
+		},
+	})
+	assert.Equal(t, "username", got.Col)
+	assert.Empty(t, got.Filters)
+}
+
+func TestFilterToProtoGroup(t *testing.T) {
+	t.Parallel()
+	// age >= 18 AND (status = active OR status = pending)
+	got := filterToProto(&Filter{
+		Logic: "and",
+		Filters: []Filter{
+			{Col: "age", Op: "gte", Val: "18"},
+			{
+				Logic: "or",
+				Filters: []Filter{
+					{Col: "status", Op: "exact", Val: "active"},
+					{Col: "status", Op: "exact", Val: "pending"},
+				},
 			},
 		},
 	})
-	assert.Len(t, got, 2)
-	assert.Equal(t, "username", got[0].Col)
-	assert.Equal(t, "status", got[1].Col)
+	assert.Equal(t, commonv1.LogicalOp_LOGICAL_OP_AND, got.Logic)
+	assert.Len(t, got.Filters, 2)
+	assert.Equal(t, "age", got.Filters[0].Col)
+	assert.Equal(t, commonv1.LogicalOp_LOGICAL_OP_OR, got.Filters[1].Logic)
+	assert.Len(t, got.Filters[1].Filters, 2)
+}
+
+func TestFilterToProtoDropsEmptyNodes(t *testing.T) {
+	t.Parallel()
+	// empty-col leaves are dropped; a group with no surviving children collapses
+	assert.Nil(t, filterToProto(&Filter{}))
+	assert.Nil(t, filterToProto(&Filter{
+		Logic:   "or",
+		Filters: []Filter{{Col: "", Val: "skip-me"}},
+	}))
+
+	got := filterToProto(&Filter{
+		Logic: "or",
+		Filters: []Filter{
+			{Col: "username", Op: "like_ci", Val: "kit"},
+			{Col: "", Op: "exact", Val: "skip-me"},
+		},
+	})
+	assert.Len(t, got.Filters, 1)
+	assert.Equal(t, "username", got.Filters[0].Col)
 }
 
 func TestOrderByFromAdvancedInput(t *testing.T) {
