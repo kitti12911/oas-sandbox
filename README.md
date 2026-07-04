@@ -148,8 +148,9 @@ Implemented routes:
 - `filterCol`, `filterOp`, `filterVal`, and `filterVals` for one filter clause
 - `orderBy` and `order` for one order clause
 
-Use `POST /v1/users/search` when the request needs multiple filters or order
-clauses:
+Use `POST /v1/users/search` when the request needs a filter tree or order
+clauses. `filter` is recursive: a leaf carries `col`/`op`/`val(s)`; a group
+carries `logic` (`and`, default, or `or`) plus nested `filters`:
 
 ```json
 {
@@ -157,18 +158,23 @@ clauses:
         "page": 1,
         "pageSize": 10
     },
-    "filters": [
-        {
-            "col": "username",
-            "op": "like_ci",
-            "val": "kit"
-        },
-        {
-            "col": "status",
-            "op": "in",
-            "vals": ["active", "pending"]
-        }
-    ],
+    "filter": {
+        "logic": "and",
+        "filters": [
+            {
+                "col": "username",
+                "op": "like_ci",
+                "val": "kit"
+            },
+            {
+                "logic": "or",
+                "filters": [
+                    { "col": "status", "op": "exact", "val": "active" },
+                    { "col": "status", "op": "exact", "val": "pending" }
+                ]
+            }
+        ]
+    },
     "orderBy": [
         {
             "col": "username",
