@@ -59,10 +59,6 @@ to publish the application image. `DEPLOY_IMAGE_REGISTRY` and
 `DEPLOY_IMAGE_NAMESPACE` only affect the homelab GitOps values update and can be
 omitted outside that workflow.
 
-`GO_TEST_RACE=true` or `GO_TEST_CGO=true` requires a C compiler in the selected
-toolchain image. `oas-sandbox` sets `GO_TEST_RACE=false` in GitHub Actions while
-using `image-toolchain` v1.1.0 because that image does not include one.
-
 ## project structure
 
 ```bash
