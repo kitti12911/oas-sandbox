@@ -209,10 +209,11 @@ func TestListUsersEndpoint(t *testing.T) {
 	assert.Equal(t, int32(2), got.GetPagination().GetPage())
 	assert.Equal(t, int32(5), got.GetPagination().GetPageSize())
 
-	require.Len(t, got.GetFilters(), 1)
-	assert.Equal(t, "username", got.GetFilters()[0].GetCol())
-	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE_CI, got.GetFilters()[0].GetOp())
-	assert.Equal(t, "kit", got.GetFilters()[0].GetVal())
+	require.NotNil(t, got.GetFilter())
+	assert.Equal(t, "username", got.GetFilter().GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE_CI, got.GetFilter().GetOp())
+	assert.Equal(t, "kit", got.GetFilter().GetVal())
+	assert.Empty(t, got.GetFilter().GetFilters())
 
 	require.Len(t, got.GetOrderBy(), 1)
 	assert.Equal(t, "username", got.GetOrderBy()[0].GetCol())
@@ -228,27 +229,32 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 			"page": 3,
 			"pageSize": 15
 		},
-		"filters": [
-			{
-				"col": "createdAt",
-				"op": "between",
-				"vals": ["2026-05-03T19:52:28.202566Z", "2026-05-03T19:54:28.202566Z"]
-			},
-			{
-				"col": "username",
-				"op": "like",
-				"val": "new"
-			},
-			{
-				"col": "deletedAt",
-				"op": "null"
-			},
-			{
-				"col": "status",
-				"op": "in",
-				"vals": ["active", "pending"]
-			}
-		],
+		"filter": {
+			"logic": "and",
+			"filters": [
+				{
+					"col": "createdAt",
+					"op": "between",
+					"vals": ["2026-05-03T19:52:28.202566Z", "2026-05-03T19:54:28.202566Z"]
+				},
+				{
+					"col": "username",
+					"op": "like",
+					"val": "new"
+				},
+				{
+					"col": "deletedAt",
+					"op": "null"
+				},
+				{
+					"logic": "or",
+					"filters": [
+						{ "col": "status", "op": "exact", "val": "active" },
+						{ "col": "status", "op": "exact", "val": "pending" }
+					]
+				}
+			]
+		},
 		"orderBy": [
 			{
 				"col": "username",
@@ -271,27 +277,34 @@ func TestAdvancedListUsersEndpoint(t *testing.T) {
 	assert.Equal(t, int32(3), got.GetPagination().GetPage())
 	assert.Equal(t, int32(15), got.GetPagination().GetPageSize())
 
-	require.Len(t, got.GetFilters(), 4)
+	root := got.GetFilter()
+	require.NotNil(t, root)
+	assert.Equal(t, commonv1.LogicalOp_LOGICAL_OP_AND, root.GetLogic())
+	require.Len(t, root.GetFilters(), 4)
 
-	assert.Equal(t, "createdAt", got.GetFilters()[0].GetCol())
-	assert.Equal(t, commonv1.FilterOp_FILTER_OP_BETWEEN, got.GetFilters()[0].GetOp())
+	assert.Equal(t, "createdAt", root.GetFilters()[0].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_BETWEEN, root.GetFilters()[0].GetOp())
 	assert.Equal(t, []string{
 		"2026-05-03T19:52:28.202566Z",
 		"2026-05-03T19:54:28.202566Z",
-	}, got.GetFilters()[0].GetVals())
+	}, root.GetFilters()[0].GetVals())
 
-	assert.Equal(t, "username", got.GetFilters()[1].GetCol())
-	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE, got.GetFilters()[1].GetOp())
-	assert.Equal(t, "new", got.GetFilters()[1].GetVal())
+	assert.Equal(t, "username", root.GetFilters()[1].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_LIKE, root.GetFilters()[1].GetOp())
+	assert.Equal(t, "new", root.GetFilters()[1].GetVal())
 
-	assert.Equal(t, "deletedAt", got.GetFilters()[2].GetCol())
-	assert.Equal(t, commonv1.FilterOp_FILTER_OP_NULL, got.GetFilters()[2].GetOp())
-	assert.Empty(t, got.GetFilters()[2].GetVal())
-	assert.Empty(t, got.GetFilters()[2].GetVals())
+	assert.Equal(t, "deletedAt", root.GetFilters()[2].GetCol())
+	assert.Equal(t, commonv1.FilterOp_FILTER_OP_NULL, root.GetFilters()[2].GetOp())
+	assert.Empty(t, root.GetFilters()[2].GetVal())
+	assert.Empty(t, root.GetFilters()[2].GetVals())
 
-	assert.Equal(t, "status", got.GetFilters()[3].GetCol())
-	assert.Equal(t, commonv1.FilterOp_FILTER_OP_IN, got.GetFilters()[3].GetOp())
-	assert.Equal(t, []string{"active", "pending"}, got.GetFilters()[3].GetVals())
+	// nested OR group survives the trip intact
+	group := root.GetFilters()[3]
+	assert.Equal(t, commonv1.LogicalOp_LOGICAL_OP_OR, group.GetLogic())
+	require.Len(t, group.GetFilters(), 2)
+	assert.Equal(t, "status", group.GetFilters()[0].GetCol())
+	assert.Equal(t, "active", group.GetFilters()[0].GetVal())
+	assert.Equal(t, "pending", group.GetFilters()[1].GetVal())
 
 	require.Len(t, got.GetOrderBy(), 2)
 	assert.Equal(t, "username", got.GetOrderBy()[0].GetCol())

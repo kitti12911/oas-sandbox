@@ -32,7 +32,7 @@ func patchUserPatch(input *PatchUserInput) (*userv1.User, *fieldmaskpb.FieldMask
 	}
 	if input.Body.Status.Set {
 		if !input.Body.Status.Null {
-			msg.Status = statusToProto(input.Body.Status.Value)
+			msg.Status = toProtoUserStatus(input.Body.Status.Value)
 		}
 		mask.Paths = append(mask.Paths, "status")
 	}

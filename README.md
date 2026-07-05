@@ -59,10 +59,6 @@ to publish the application image. `DEPLOY_IMAGE_REGISTRY` and
 `DEPLOY_IMAGE_NAMESPACE` only affect the homelab GitOps values update and can be
 omitted outside that workflow.
 
-`GO_TEST_RACE=true` or `GO_TEST_CGO=true` requires a C compiler in the selected
-toolchain image. `oas-sandbox` sets `GO_TEST_RACE=false` in GitHub Actions while
-using `image-toolchain` v1.1.0 because that image does not include one.
-
 ## project structure
 
 ```bash
@@ -152,8 +148,9 @@ Implemented routes:
 - `filterCol`, `filterOp`, `filterVal`, and `filterVals` for one filter clause
 - `orderBy` and `order` for one order clause
 
-Use `POST /v1/users/search` when the request needs multiple filters or order
-clauses:
+Use `POST /v1/users/search` when the request needs a filter tree or order
+clauses. `filter` is recursive: a leaf carries `col`/`op`/`val(s)`; a group
+carries `logic` (`and`, default, or `or`) plus nested `filters`:
 
 ```json
 {
@@ -161,18 +158,23 @@ clauses:
         "page": 1,
         "pageSize": 10
     },
-    "filters": [
-        {
-            "col": "username",
-            "op": "like_ci",
-            "val": "kit"
-        },
-        {
-            "col": "status",
-            "op": "in",
-            "vals": ["active", "pending"]
-        }
-    ],
+    "filter": {
+        "logic": "and",
+        "filters": [
+            {
+                "col": "username",
+                "op": "like_ci",
+                "val": "kit"
+            },
+            {
+                "logic": "or",
+                "filters": [
+                    { "col": "status", "op": "exact", "val": "active" },
+                    { "col": "status", "op": "exact", "val": "pending" }
+                ]
+            }
+        ]
+    },
     "orderBy": [
         {
             "col": "username",

@@ -31,7 +31,7 @@ type AdvancedListUsersInput struct {
 
 type AdvancedListUsersRequest struct {
 	Pagination *Pagination `json:"pagination,omitempty" doc:"Pagination options"`
-	Filters    []Filter    `json:"filters,omitempty"    doc:"Filter clauses"`
+	Filter     *Filter     `json:"filter,omitempty"     doc:"Filter tree: a leaf (col/op/val) or a group (logic + filters)"`
 	OrderBy    []OrderBy   `json:"orderBy,omitempty"    doc:"Order clauses"`
 }
 
@@ -40,11 +40,15 @@ type Pagination struct {
 	PageSize int `json:"pageSize,omitempty" example:"10" doc:"Items per page"`
 }
 
+// Filter is a recursive predicate: a leaf carries col/op/val(s); a group carries
+// logic ("and"/"or") plus nested filters and ignores col/op/val(s).
 type Filter struct {
-	Col  string   `json:"col"            example:"username" doc:"Filter field"`
-	Op   string   `json:"op"             example:"like_ci"  doc:"Filter operation"`
-	Val  string   `json:"val,omitempty"  example:"kit"      doc:"Single filter value"`
-	Vals []string `json:"vals,omitempty" example:"active"   doc:"Multiple filter values"`
+	Col     string   `json:"col,omitempty"     example:"username" doc:"Filter field (leaf)"`
+	Op      string   `json:"op,omitempty"      example:"like_ci"  doc:"Filter operation (leaf)"`
+	Val     string   `json:"val,omitempty"     example:"kit"      doc:"Single filter value (leaf)"`
+	Vals    []string `json:"vals,omitempty"    example:"active"   doc:"Multiple filter values (leaf)"`
+	Logic   string   `json:"logic,omitempty"   example:"or"       doc:"Group logic: and (default) or or"`
+	Filters []Filter `json:"filters,omitempty"                    doc:"Nested filters; non-empty makes this node a group"`
 }
 
 type OrderBy struct {
@@ -85,7 +89,7 @@ type PatchUserRequest struct {
 	Email       humautil.Patch[string]       `json:"email"       required:"false" example:"kitti@example.com" doc:"Email address"`
 	Username    humautil.Patch[string]       `json:"username"    required:"false" example:"kitti"             doc:"Username"`
 	DisplayName humautil.Patch[string]       `json:"displayName" required:"false" example:"Kitti"             doc:"Display name" patch:"ptr"`
-	Status      humautil.Patch[string]       `json:"status"      required:"false" example:"active"            doc:"User status" patch:"converter=statusToProto"`
+	Status      humautil.Patch[string]       `json:"status"      required:"false" example:"active"            doc:"User status" patch:"converter=toProtoUserStatus"`
 	Profile     humautil.Patch[PatchProfile] `json:"profile"     required:"false"                           doc:"User profile" patch:"proto=UserProfile"`
 }
 
@@ -129,11 +133,11 @@ type CreateUserResult struct {
 	ID string `json:"id" example:"0198f8f0-0000-7000-8000-000000000001" doc:"Created user ID"`
 }
 
-type UserOutput struct {
+type GetUserOutput struct {
 	Body User
 }
 
-type UserListOutput struct {
+type ListUsersOutput struct {
 	Body UserList
 }
 

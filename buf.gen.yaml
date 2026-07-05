@@ -1,28 +1,21 @@
 version: v2
 inputs:
     - git_repo: https://github.com/kitti12911/proto-sandbox.git
-      tag: v1.9.1
+      tag: v2.0.0
       paths:
           - common/v1
           - user/v1/user.proto
           - worker/v1/worker.proto
           - saga/v1/saga.proto
+managed:
+    enabled: true
+    override:
+        - file_option: go_package_prefix
+          value: oas-sandbox/gen/grpc
 plugins:
     - local: protoc-gen-go
       out: gen/grpc
-      opt:
-          - paths=source_relative
-          - Mcommon/v1/pagination.proto=oas-sandbox/gen/grpc/common/v1
-          - Mcommon/v1/query.proto=oas-sandbox/gen/grpc/common/v1
-          - Muser/v1/user.proto=oas-sandbox/gen/grpc/user/v1
-          - Mworker/v1/worker.proto=oas-sandbox/gen/grpc/worker/v1
-          - Msaga/v1/saga.proto=oas-sandbox/gen/grpc/saga/v1
+      opt: paths=source_relative
     - local: protoc-gen-go-grpc
       out: gen/grpc
-      opt:
-          - paths=source_relative
-          - Mcommon/v1/pagination.proto=oas-sandbox/gen/grpc/common/v1
-          - Mcommon/v1/query.proto=oas-sandbox/gen/grpc/common/v1
-          - Muser/v1/user.proto=oas-sandbox/gen/grpc/user/v1
-          - Mworker/v1/worker.proto=oas-sandbox/gen/grpc/worker/v1
-          - Msaga/v1/saga.proto=oas-sandbox/gen/grpc/saga/v1
+      opt: paths=source_relative

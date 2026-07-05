@@ -46,8 +46,12 @@ git checkout "${revision_sha}"
 allow_breaking="${OPENAPI_ALLOW_BREAKING:-}"
 if [ -z "${allow_breaking}" ]; then
 	allow_breaking=false
-	if [ "${GITHUB_EVENT_NAME:-}" = "push" ] &&
-		git log -1 --pretty=%B | grep -Fq "${allow_breaking_message}"; then
+	# Honor the allow-breaking marker in ANY commit introduced by this change
+	# (base..revision), not just the tip on push — so an intentional break
+	# approved on the source branch also clears promotion PRs
+	# (develop -> uat -> main), whose tip commit rarely carries the marker.
+	if git log "${base_sha}..${revision_sha}" --pretty=%B 2>/dev/null |
+		grep -Fq "${allow_breaking_message}"; then
 		allow_breaking=true
 	fi
 fi
