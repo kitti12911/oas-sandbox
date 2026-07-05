@@ -168,7 +168,7 @@ jobs:
                   go install github.com/bufbuild/buf/cmd/buf@v1.71.0
                   go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
                   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
-                  go install github.com/oasdiff/oasdiff@v1.14.0
+                  go install github.com/oasdiff/oasdiff@v1.21.0
 
             - name: Compare OpenAPI
               run: ./scripts/ci/openapi-report.sh
